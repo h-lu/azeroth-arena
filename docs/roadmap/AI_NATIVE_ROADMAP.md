@@ -101,6 +101,16 @@
 - 手牌拖拽有重量。
 - AI 行动前有可感知思考。
 
+实现状态：
+
+- `unity-client/Assets/AzerothArena/Scenes/Match.unity`：Week 5 可视原型场景，启动 `MatchVisualPrototypeBootstrap` 生成 mock 战斗桌面。
+- `unity-client/Assets/AzerothArena/Prefabs/Cards/CardView.prefab`：基础卡牌 prefab，配套 `CardView` 展示接口。
+- `HandLayoutController`：扇形手牌布局、hover lift 和平滑回位。
+- `CardDragController`：拖拽抬升、速度倾斜、释放阈值和回弹 reflow。
+- `VisualCommandQueue` + `MockVisualCommandQueueDriver`：本地 mock 动画队列和 AI thinking beat，不接服务器。
+- `AIOpponentView` + `ThinkingRing` + `IntentBar`：AI 头像面板、思考环、意图强度条、短台词和 mood color hooks。
+- `npm run validate:unity-prototype`：校验 Week 5 Unity 原型交付文件与关键类标记。
+
 ### Week 6 — Vertical slice playtest
 
 交付：

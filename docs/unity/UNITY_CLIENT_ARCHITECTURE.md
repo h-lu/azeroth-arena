@@ -219,3 +219,23 @@ AI 思考节奏：
 5. `AIOpponentView` 思考环、IntentBar、短台词。
 6. 接 WebSocket / DTO。
 7. iPhone 横屏触控优化。
+
+## Week 5 Visual Prototype
+
+当前原型位于 `unity-client/`，定位是视觉和交互验证，不负责规则裁决，也不接 Week 7-8 的 WebSocket。
+
+已落地：
+
+- `Assets/AzerothArena/Scenes/Match.unity`：通过 `MatchVisualPrototypeBootstrap` 生成 mock 战斗桌面、三区 lane、柱子、手牌和 AI 面板。
+- `Assets/AzerothArena/Prefabs/Cards/CardView.prefab`：卡牌显示基础 prefab。
+- `Assets/AzerothArena/Prefabs/AI/AIOpponentView.prefab`、`ThinkingRing.prefab`、`IntentBar.prefab`：AI 对手面板基础 prefab。
+- `HandLayoutController`：手牌扇形排布、hover 抬升和平滑回位。
+- `CardDragController`：拖拽抬升、速度倾斜、释放阈值和回弹。
+- `VisualCommandQueue`：mock 视觉命令队列，支持输入锁和串行执行。
+- `MockVisualCommandQueueDriver`：循环播放 AI thinking / intent 展示，保证无服务端时也能看到 AI 行动前思考。
+
+验证入口：
+
+```bash
+npm run validate:unity-prototype
+```

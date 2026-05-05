@@ -186,6 +186,28 @@ AI Director v0 playtest：
 - `AI_DIRECTOR_RESULT_DIR=path/to/output`：调整 JSON/Markdown 输出目录。
 - `AI_DIRECTOR_ENCOUNTER_TEMPLATE_ID=trickster-reaction-trap`：选择白名单 encounter template；未知模板会 fallback 到默认白名单模板并记录 trace。
 
+## Unity Visual Prototype
+
+Week 5 增加了本地 Unity visual prototype，不接 WebSocket，不提前进入 Week 6 playtest scope。
+
+```text
+unity-client/Assets/AzerothArena/Scenes/Match.unity
+```
+
+原型包含：
+
+- `CardView.prefab` 和 `CardView` 数据绑定接口。
+- `HandLayoutController` 扇形手牌、hover 抬升和平滑回位。
+- `CardDragController` 拖拽抬升、速度倾斜、释放阈值和回弹。
+- mock `VisualCommandQueue` 与 `MockVisualCommandQueueDriver`。
+- `AIOpponentView`、`ThinkingRing`、`IntentBar` 的 AI 思考和意图展示。
+
+本地文件完整性校验：
+
+```bash
+npm run validate:unity-prototype
+```
+
 ## 已实现规则范围
 
 - 6 个英雄：盗贼、法师、牧师、战士、术士、德鲁伊。
