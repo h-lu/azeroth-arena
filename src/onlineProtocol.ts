@@ -3,6 +3,72 @@ import type { Command, GameEvent, GameState, PlayerState } from "../packages/rul
 
 export type RoomMode = "local" | "online";
 export type ConnectionStatus = "disconnected" | "connecting" | "reconnecting" | "connected" | "error";
+export type AIEnemyStyle = "aggressive" | "control" | "sustain" | "trickster";
+export type AIPersonaArchetype = "duelist" | "controller" | "mentor" | "trickster" | "rival";
+export type AIDirectorSource = "template" | "heuristic" | "llm";
+export type AIDirectorOutputType = "encounter" | "intent" | "summary" | "nextRun" | "dialogue";
+export type AIThreatType = "damage" | "heal" | "defense" | "control" | "interrupt" | "movement" | "burst" | "resource";
+export type AIConfidenceBand = "low" | "mid" | "high";
+
+export interface AIPersona {
+  id: string;
+  name: string;
+  archetype: AIPersonaArchetype;
+  aggression: number;
+  riskTolerance: number;
+  bluffFrequency: number;
+  resourceGreed: number;
+  chatFrequency: number;
+  mercy: number;
+}
+
+export interface AIEncounterSpec {
+  encounterId: string;
+  templateId: string;
+  seed: string;
+  personaId: string;
+  enemyStyle: AIEnemyStyle;
+  battlefieldModifierIds: string[];
+  objectiveIds: string[];
+  openingIntent: string;
+}
+
+export interface AIIntentHint {
+  turn: number;
+  source: AIDirectorSource;
+  threatType: AIThreatType;
+  targetEntityIds: string[];
+  confidenceBand: AIConfidenceBand;
+  text: string;
+}
+
+export interface AIPostGameSummary {
+  matchId: string;
+  keyTurns: number[];
+  playerStrengths: string[];
+  playerMistakes: string[];
+  decisiveMoment: string;
+  nextRunSuggestion: string;
+}
+
+export interface AIDirectorDialogue {
+  turn: number;
+  personaId: string;
+  source: "template";
+  line: string;
+}
+
+export interface AIDirectorTrace {
+  traceId: string;
+  roomCode: string;
+  version?: number;
+  source: AIDirectorSource;
+  inputSummary: string;
+  outputType: AIDirectorOutputType;
+  output: unknown;
+  latencyMs: number;
+  fallbackUsed: boolean;
+}
 
 export interface PublicPlayerState extends PlayerState {
   hand: string[];
@@ -70,8 +136,8 @@ export interface HealthCheckPayload {
 }
 
 export interface RoomReplayEntry {
-  kind: "room" | "command";
-  type: "createRoom" | "joinRoom" | "reconnect" | "submitCommand";
+  kind: "room" | "command" | "director";
+  type: "createRoom" | "joinRoom" | "reconnect" | "submitCommand" | "aiDirector";
   roomCode: string;
   side: Side;
   timestamp: string;
@@ -83,6 +149,7 @@ export interface RoomReplayEntry {
   openedReactionWindow?: boolean;
   interrupted?: boolean;
   trinketUsed?: boolean;
+  directorTrace?: AIDirectorTrace;
 }
 
 export interface RoomPlaytestSummary {

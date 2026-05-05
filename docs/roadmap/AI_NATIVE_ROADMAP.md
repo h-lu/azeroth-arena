@@ -57,6 +57,13 @@
 - 不接实时 LLM 也能感知 AI 意图。
 - 所有 Director 输出可 replay。
 
+实现状态：
+
+- `server/aiDirector.ts`：白名单 `AI_PERSONAS`、`ENCOUNTER_TEMPLATES`、battlefield modifiers、objectives，以及确定性的 encounter / intent / dialogue / summary / trace 生成。
+- `server/aiBotPlaytest.ts`：AI vs AI smoke 默认记录 Director v0 encounter、每 round intent hint、模板短台词、赛后复盘和 `AIDirectorTrace`。
+- `RoomManager.registerDirectorTrace()`：把 Director 输出作为 `kind: "director"` 的 replay entry 落入 room replay/export。
+- `scripts/playtest-ai-director.mjs` / `npm run playtest:ai-director`：输出 Director-focused JSON 与 Markdown 摘要。
+
 ### Week 4 — Web debug playable slice
 
 交付：

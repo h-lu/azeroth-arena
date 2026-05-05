@@ -34,6 +34,7 @@ npm run build
 npm run smoke:online
 npm run playtest:command-parity
 npm run playtest:ai-bot
+npm run playtest:ai-director
 ```
 
 当前验证基线：
@@ -42,7 +43,8 @@ npm run playtest:ai-bot
 - `npm run typecheck`：`tsc --noEmit` 通过。
 - `npm run build`：Vite production build 通过。
 - `npm run smoke:online`：启动真实房间服务并覆盖 `/healthz`、`/debug/rooms` 脱敏、WebSocket create/join/submit/disconnect/reconnect/stale connection。
-- `npm run playtest:ai-bot`：运行非 LLM BotPolicy 的 AI vs AI 固定步数 smoke，并在 `playtest-results/ai-bot/` 输出 JSON trace 与 Markdown 摘要。
+- `npm run playtest:ai-bot`：运行非 LLM BotPolicy 的 AI vs AI 固定步数 smoke，并在 `playtest-results/ai-bot/` 输出 JSON trace、Director v0 trace 与 Markdown 摘要。
+- `npm run playtest:ai-director`：运行 Director v0 重点 smoke，并在 `playtest-results/ai-director/` 输出 encounter、intent hints、模板短台词、赛后复盘与可 replay trace。
 
 ## 本地热座
 
@@ -135,14 +137,29 @@ AI baseline playtest：
 
 ```bash
 npm run playtest:ai-bot
+npm run playtest:ai-director
 ```
 
-默认配置为蓝方 `aggressive`、红方 `sustain`，最多执行 80 个合法 command。可选环境变量：
+`playtest:ai-bot` 默认配置为蓝方 `aggressive`、红方 `sustain`，最多执行 80 个合法 command。可选环境变量：
 
 - `AI_BOT_MAX_STEPS=120`：调整固定步数上限。
 - `AI_BOT_RESULT_DIR=path/to/output`：调整 JSON/Markdown 输出目录。
 
 BotPolicy 不接实时 LLM，只从 `PlayerView.legalCommands` 中选择动作；每个候选动作会生成稳定 `actionId`，每次选择会输出 AI decision trace。
+
+AI Director v0 playtest：
+
+- `server/aiDirector.ts` 提供 3 个白名单 persona、encounter templates、battlefield modifiers 和 objectives。
+- 每局开局输出 `AIEncounterSpec` 与模板短台词。
+- 每个新 round 输出公开 `AIIntentHint`，只包含威胁类型、目标倾向和模糊置信度，不展示隐藏手牌或完整行动树。
+- 对局结束后基于 replay counters / command entries 生成 `AIPostGameSummary`。
+- Director 输出通过 `AIDirectorTrace` 写入 AI playtest JSON 和 room replay，便于审计与重放。
+
+`playtest:ai-director` 可选环境变量：
+
+- `AI_DIRECTOR_MAX_STEPS=120`：调整固定步数上限。
+- `AI_DIRECTOR_RESULT_DIR=path/to/output`：调整 JSON/Markdown 输出目录。
+- `AI_DIRECTOR_ENCOUNTER_TEMPLATE_ID=trickster-reaction-trap`：选择白名单 encounter template；未知模板会 fallback 到默认白名单模板并记录 trace。
 
 ## 已实现规则范围
 

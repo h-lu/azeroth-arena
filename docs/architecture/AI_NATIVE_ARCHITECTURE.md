@@ -190,6 +190,8 @@ AI-native 必须记录：
 
 AI trace 默认不发给普通客户端，只进入 debug/replay/admin。
 
+Week 3 Director v0 已把 encounter、intent hint、模板短台词和赛后复盘作为 `AIDirectorTrace` 写入 AI playtest JSON，并可通过 room replay 中的 `kind: "director"` entry 审计。普通在线协议仍不主动把完整 Director trace 推给玩家客户端。
+
 ## 安全边界
 
 - Client 永远只提交 command intent，不提交 result。

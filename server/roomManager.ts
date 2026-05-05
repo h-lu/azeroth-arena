@@ -5,6 +5,7 @@ import type { Side } from "../packages/data/src";
 import { createReplayExport } from "./playtestExport";
 import { buildPlayerView } from "./playerView";
 import type {
+  AIDirectorTrace,
   PlayerView,
   RoomDiagnostics,
   RoomPlaytestSummary,
@@ -302,6 +303,22 @@ export class RoomManager {
     const room = this.getRoomOrThrow(roomCodeValue);
     this.verifySeat(room, side, seatTokenValue);
     return createReplayExport(room);
+  }
+
+  registerDirectorTrace(roomCodeValue: string, side: Side, trace: AIDirectorTrace) {
+    const room = this.getRoomOrThrow(roomCodeValue);
+    const entry: RoomReplayEntry = {
+      kind: "director",
+      type: "aiDirector",
+      roomCode: room.roomCode,
+      side,
+      timestamp: now(),
+      version: trace.version ?? room.version,
+      round: room.state.round,
+      directorTrace: trace,
+    };
+    this.registerReplay(room, entry);
+    return entry;
   }
 
   summarize(roomCodeValue: string): RoomPlaytestSummary {

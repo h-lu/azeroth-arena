@@ -80,6 +80,7 @@ function buildCsv(summary: RoomPlaytestSummary) {
 
 function buildMarkdown(room: RoomRecord, summary: RoomPlaytestSummary) {
   const replay = room.replay.filter((entry) => entry.kind === "command");
+  const directorReplay = room.replay.filter((entry) => entry.kind === "director");
   const lines = [
     `# Azeroth Arena Playtest Export`,
     ``,
@@ -97,6 +98,14 @@ function buildMarkdown(room: RoomRecord, summary: RoomPlaytestSummary) {
     `## Replay Tail`,
     ``,
     ...replay.slice(-8).map((entry) => `- v${entry.version} r${entry.round} ${entry.side} ${entry.type}: ${entry.command?.type ?? "room"}${entry.interrupted ? " (interrupted)" : ""}${entry.trinketUsed ? " (trinket)" : ""}`),
+    ``,
+    `## Director Trace Tail`,
+    ``,
+    ...(directorReplay.length > 0
+      ? directorReplay
+          .slice(-8)
+          .map((entry) => `- v${entry.version} r${entry.round} ${entry.directorTrace?.outputType ?? "director"} source=${entry.directorTrace?.source ?? "unknown"} trace=${entry.directorTrace?.traceId ?? "unknown"}`)
+      : [`- none`]),
   ];
   return lines.join("\n");
 }
@@ -110,4 +119,3 @@ export function createReplayExport(room: RoomRecord): ReplayExportBundle {
     markdown: buildMarkdown(room, summary),
   };
 }
-
