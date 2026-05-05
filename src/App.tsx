@@ -23,7 +23,7 @@ import {
   type HeroState,
   type ReactionWindow,
 } from "../packages/rules/src";
-import type { PlayerView, ReplayExportBundle, RoomMode, ConnectionStatus, RoomJoinedPayload, RoomErrorPayload } from "./onlineProtocol";
+import type { AIEncounterDebugState, PlayerView, ReplayExportBundle, RoomMode, ConnectionStatus, RoomJoinedPayload, RoomErrorPayload } from "./onlineProtocol";
 import {
   clearOnlineSeat,
   describeConnectionStatus,
@@ -55,6 +55,7 @@ type DragTargetKind = "none" | "commit" | "choice";
 
 type SocketAction =
   | { type: "createRoom"; preferredSide?: Side }
+  | { type: "createAIEncounter"; preferredSide?: Side; encounterTemplateId?: string }
   | { type: "joinRoom"; roomCode: string; preferredSide?: Side }
   | { type: "reconnect"; roomCode: string; side: Side; seatToken: string }
   | { type: "submitCommand"; roomCode: string; side: Side; seatToken: string; command: Command; expectedVersion?: number }
@@ -75,6 +76,11 @@ const ZONES: ZoneId[] = ["left", "center", "right"];
 const PLAYER_COMMAND_TYPES = ["activateHero", "moveHero", "pass", "endTurn", "startTurn", "selectFocusTarget", "useTrinket", "discardCards"] as const;
 const CHOICE_MOVE_CARD_IDS = new Set(["022-priest-psychic-scream", "042-druid-wild-charge", "044-common-pillar-dance", "048-common-tactical-retreat"]);
 const ORDINARY_DAMAGE_CARD_IDS = new Set(["007-rogue-backstab", "008-rogue-wound-poison", "024-priest-shadow-word-death", "025-warrior-heroic-strike", "026-warrior-mortal-strike", "031-warlock-corruption"]);
+const AI_ENCOUNTER_TEMPLATE_OPTIONS = [
+  { id: "rival-burst-check", label: "Rival Burst Check" },
+  { id: "mentor-stability-check", label: "Mentor Stability Check" },
+  { id: "trickster-reaction-trap", label: "Trickster Reaction Trap" },
+];
 
 function sideLabel(side: Side) {
   return side === "blue" ? "蓝方" : "红方";
@@ -391,6 +397,42 @@ function selectModeLabel(mode: RoomMode) {
   return mode === "local" ? "本地热座" : "在线房间";
 }
 
+function threatLabel(threatType: string) {
+  switch (threatType) {
+    case "burst":
+      return "爆发";
+    case "control":
+      return "控制";
+    case "interrupt":
+      return "打断";
+    case "heal":
+      return "治疗";
+    case "defense":
+      return "防守";
+    case "movement":
+      return "位移";
+    case "resource":
+      return "资源";
+    case "damage":
+      return "伤害";
+    default:
+      return threatType;
+  }
+}
+
+function confidenceLabel(confidenceBand: string) {
+  switch (confidenceBand) {
+    case "high":
+      return "高";
+    case "mid":
+      return "中";
+    case "low":
+      return "低";
+    default:
+      return confidenceBand;
+  }
+}
+
 function CardFace({ cardId, availability }: { cardId: string; availability: CardAvailability }) {
   const card = CARD_BY_ID[cardId];
   if (!card) return null;
@@ -578,6 +620,8 @@ export default function App() {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [onlineView, setOnlineView] = useState<PlayerView | null>(null);
   const [exportBundle, setExportBundle] = useState<ReplayExportBundle | null>(null);
+  const [aiEncounterDebug, setAIEncounterDebug] = useState<AIEncounterDebugState | null>(null);
+  const [encounterTemplateId, setEncounterTemplateId] = useState(AI_ENCOUNTER_TEMPLATE_OPTIONS[0].id);
 
   const socketRef = useRef<ActiveSocket | null>(null);
   const socketIdRef = useRef(0);
@@ -641,6 +685,9 @@ export default function App() {
   const opponentHp = opponentHeroes.reduce((sum, hero) => sum + hero.hp, 0);
   const playerMaxHp = playerHeroes.reduce((sum, hero) => sum + hero.maxHp, 0);
   const opponentMaxHp = opponentHeroes.reduce((sum, hero) => sum + hero.maxHp, 0);
+  const latestIntentHint = aiEncounterDebug?.intentHints.at(-1) ?? null;
+  const latestAIDecision = aiEncounterDebug?.decisionTraces.at(-1) ?? null;
+  const latestAIDialogue = aiEncounterDebug?.dialogue.at(-1) ?? null;
 
   useEffect(() => {
     setSelectedHeroId((previous) => {
@@ -711,6 +758,7 @@ export default function App() {
         | { type: "playerView"; payload: PlayerView }
         | { type: "roomError"; payload: RoomErrorPayload }
         | { type: "replayExport"; payload: { roomCode: string; export: ReplayExportBundle } }
+        | { type: "aiEncounterUpdated"; payload: AIEncounterDebugState }
         | { type: "opponentDisconnected"; payload: { roomCode: string; side: Side } };
 
       switch (message.type) {
@@ -722,6 +770,9 @@ export default function App() {
           setConnectionStatus("connected");
           reconnectAttemptRef.current = 0;
           setExportBundle(null);
+          if (message.payload.roomKind !== "aiEncounter") {
+            setAIEncounterDebug(null);
+          }
           setErrorMessage(null);
           return;
         case "playerView":
@@ -735,6 +786,9 @@ export default function App() {
           return;
         case "replayExport":
           setExportBundle(message.payload.export);
+          return;
+        case "aiEncounterUpdated":
+          setAIEncounterDebug(message.payload);
           return;
         case "opponentDisconnected":
           setErrorMessage(`${sideLabel(message.payload.side)} 已断开连接，对方可使用保存的 roomCode / side / seatToken 恢复。`);
@@ -763,6 +817,7 @@ export default function App() {
       if (options.clearView) {
         setOnlineView(null);
         setExportBundle(null);
+        setAIEncounterDebug(null);
       }
       return;
     }
@@ -775,6 +830,7 @@ export default function App() {
     if (options.clearView) {
       setOnlineView(null);
       setExportBundle(null);
+      setAIEncounterDebug(null);
     }
   }
 
@@ -957,11 +1013,30 @@ export default function App() {
 
   async function createRoom() {
     reconnectAttemptRef.current = 0;
+    setAIEncounterDebug(null);
     try {
       await sendSocketAction(
         {
           type: "createRoom",
           preferredSide: preferredSide === "auto" ? undefined : preferredSide,
+        },
+        "connect",
+        true,
+      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function createAIEncounter() {
+    reconnectAttemptRef.current = 0;
+    setAIEncounterDebug(null);
+    try {
+      await sendSocketAction(
+        {
+          type: "createAIEncounter",
+          preferredSide: preferredSide === "auto" ? "blue" : preferredSide,
+          encounterTemplateId,
         },
         "connect",
         true,
@@ -977,6 +1052,7 @@ export default function App() {
       return;
     }
     reconnectAttemptRef.current = 0;
+    setAIEncounterDebug(null);
     try {
       await sendSocketAction(
         {
@@ -1177,6 +1253,95 @@ export default function App() {
     );
   }
 
+  const aiEncounterPanel = aiEncounterDebug ? (
+    <section className="drawer-section ai-debug-panel">
+      <details open>
+        <summary className="side-summary">
+          <span>AI Debug</span>
+          <small>{aiEncounterDebug.encounter.templateId}</small>
+        </summary>
+        <div className="ai-debug-grid">
+          <div>
+            <span>Persona</span>
+            <strong>{aiEncounterDebug.persona.name}</strong>
+            <small>{aiEncounterDebug.encounter.enemyStyle} · AI {sideLabel(aiEncounterDebug.aiSide)}</small>
+          </div>
+          <div>
+            <span>Auto Advance</span>
+            <strong>{aiEncounterDebug.autoAdvance.lastStoppedReason}</strong>
+            <small>{aiEncounterDebug.autoAdvance.lastStepCount} AI command(s) after last trigger</small>
+          </div>
+          <div>
+            <span>Replay</span>
+            <strong>v{aiEncounterDebug.replaySummary.version} / R{aiEncounterDebug.replaySummary.round}</strong>
+            <small>{aiEncounterDebug.replaySummary.commandCount} commands · {aiEncounterDebug.replaySummary.responseWindowCount} reactions</small>
+          </div>
+        </div>
+        <div className="ai-debug-list">
+          <strong>本局目标</strong>
+          {aiEncounterDebug.objectives.map((objective) => (
+            <div key={objective.id} className="ai-debug-item">
+              <span>{objective.name}</span>
+              <small>{objective.publicText}</small>
+            </div>
+          ))}
+        </div>
+        <div className="ai-debug-list">
+          <strong>战场词缀</strong>
+          {aiEncounterDebug.battlefieldModifiers.map((modifier) => (
+            <div key={modifier.id} className="ai-debug-item">
+              <span>{modifier.name}</span>
+              <small>{modifier.publicText}</small>
+            </div>
+          ))}
+        </div>
+        <div className="ai-debug-list">
+          <strong>敌方意图</strong>
+          {aiEncounterDebug.intentHints.slice().reverse().map((hint) => (
+            <div key={`${hint.turn}-${hint.threatType}-${hint.text}`} className="ai-debug-item">
+              <span>Turn {hint.turn} · {threatLabel(hint.threatType)} · {confidenceLabel(hint.confidenceBand)}</span>
+              <small>{hint.text}{hint.targetEntityIds.length > 0 ? ` · ${listNames(hint.targetEntityIds)}` : ""}</small>
+            </div>
+          ))}
+        </div>
+        <div className="ai-debug-list">
+          <strong>AI Decision Trace</strong>
+          {aiEncounterDebug.decisionTraces.slice().reverse().map((trace) => (
+            <details key={trace.decisionId} className="log-item">
+              <summary>
+                <span className="log-type">{trace.intent}</span>
+                <span>v{trace.version} · {trace.style} · {trace.selectedCommandType ?? "no command"}</span>
+              </summary>
+              <pre>{JSON.stringify(trace, null, 2)}</pre>
+            </details>
+          ))}
+          {aiEncounterDebug.decisionTraces.length === 0 ? <div className="hint">AI 尚未行动。</div> : null}
+        </div>
+        <div className="ai-debug-list">
+          <strong>Director Trace</strong>
+          {aiEncounterDebug.directorTraces.slice().reverse().map((trace) => (
+            <details key={trace.traceId} className="log-item">
+              <summary>
+                <span className="log-type">{trace.outputType}</span>
+                <span>v{trace.version ?? 0} · {trace.source} · fallback={String(trace.fallbackUsed)}</span>
+              </summary>
+              <pre>{JSON.stringify(trace, null, 2)}</pre>
+            </details>
+          ))}
+        </div>
+        {aiEncounterDebug.postGameSummary ? (
+          <div className="ai-debug-list">
+            <strong>Post-game Summary</strong>
+            <div className="ai-debug-item">
+              <span>{aiEncounterDebug.postGameSummary.decisiveMoment}</span>
+              <small>{aiEncounterDebug.postGameSummary.nextRunSuggestion}</small>
+            </div>
+          </div>
+        ) : null}
+      </details>
+    </section>
+  ) : null;
+
   const summaryPanel = mode === "online" ? (
     <section className="drawer-section online-panel">
       <details open>
@@ -1202,12 +1367,23 @@ export default function App() {
           <input value={roomCode} onChange={(event) => setRoomCode(sanitizeRoomCode(event.target.value))} placeholder="ABC123" />
         </label>
         <label className="field">
+          <span>AI Encounter</span>
+          <select value={encounterTemplateId} onChange={(event) => setEncounterTemplateId(event.target.value)}>
+            {AI_ENCOUNTER_TEMPLATE_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
           <span>Seat Token</span>
           <input value={seatToken} onChange={(event) => setSeatToken(event.target.value)} placeholder="reconnect token" type="password" autoComplete="off" />
         </label>
         <div className="button-row">
           <button type="button" className="primary-button" onClick={() => void createRoom()}>
             创建房间
+          </button>
+          <button type="button" className="primary-button" onClick={() => void createAIEncounter()}>
+            AI 遭遇
           </button>
           <button type="button" className="primary-button" onClick={() => void joinRoom()}>
             加入房间
@@ -1315,6 +1491,26 @@ export default function App() {
           </AnimatePresence>
 
           {activeState.winner ? <section className="floating-banner winner-banner">胜者：{sideLabel(activeState.winner)}</section> : null}
+
+          {aiEncounterDebug ? (
+            <section className="ai-debug-ribbon" aria-label="AI encounter debug">
+              <div>
+                <span className="mini-tag">AI Encounter</span>
+                <strong>{aiEncounterDebug.persona.name}</strong>
+                <small>{aiEncounterDebug.encounter.openingIntent}</small>
+              </div>
+              <div>
+                <span className="selection-label">敌方意图</span>
+                <strong>{latestIntentHint ? `${threatLabel(latestIntentHint.threatType)} / ${confidenceLabel(latestIntentHint.confidenceBand)}` : "未生成"}</strong>
+                <small>{latestIntentHint?.text ?? "等待 Director hint"}</small>
+              </div>
+              <div>
+                <span className="selection-label">AI Trace</span>
+                <strong>{latestAIDecision ? `${latestAIDecision.intent} ${Math.round(latestAIDecision.confidence * 100)}%` : "等待 AI 行动"}</strong>
+                <small>{latestAIDecision ? latestAIDecision.selectedCommandType ?? "no command" : latestAIDialogue?.line ?? "暂无决策"}</small>
+              </div>
+            </section>
+          ) : null}
 
           <section className="team-band opponent-band">
             <div className="team-crest opponent">
@@ -1541,6 +1737,7 @@ export default function App() {
               </section>
 
               {mode === "online" ? summaryPanel : null}
+              {mode === "online" ? aiEncounterPanel : null}
 
               <section className="drawer-section">
                 <div className="panel-header">

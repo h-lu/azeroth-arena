@@ -72,6 +72,12 @@ function sendJoined(socket: WebSocket, payload: RoomJoinedMessage["payload"]) {
   send(socket, { type: "playerView", payload: payload.playerView });
 }
 
+function sendAIEncounterUpdate(socket: WebSocket, manager: RoomManager, roomCode: string) {
+  const payload = manager.getAIEncounterDebugState(roomCode);
+  if (!payload) return;
+  send(socket, { type: "aiEncounterUpdated", payload });
+}
+
 function broadcastPlayerViews(roomCode: string, manager: RoomManager) {
   const room = manager.getRoom(roomCode);
   if (!room) return;
@@ -82,6 +88,18 @@ function broadcastPlayerViews(roomCode: string, manager: RoomManager) {
     if (!socket) continue;
     send(socket, { type: "playerView", payload: buildPlayerView(room, side) });
   }
+}
+
+function broadcastAIEncounterUpdate(roomCode: string, manager: RoomManager) {
+  const room = manager.getRoom(roomCode);
+  const payload = manager.getAIEncounterDebugState(roomCode);
+  if (!room || !payload) return;
+  const humanSide = payload.humanSide;
+  const seat = room.seats[humanSide];
+  if (!seat?.connected) return;
+  const socket = socketsByConnectionId.get(seat.connectionId ?? "");
+  if (!socket) return;
+  send(socket, { type: "aiEncounterUpdated", payload });
 }
 
 function broadcastOpponentDisconnected(roomCode: string, disconnectedSide: Side, manager: RoomManager) {
@@ -186,7 +204,36 @@ function createMessageHandler(socket: WebSocket, manager: RoomManager, loggerIns
           side: result.side,
           seatToken: result.seatToken,
           playerView: result.playerView,
+          roomKind: "pvp",
         });
+        return;
+      }
+      case "createAIEncounter": {
+        const result = manager.createAIEncounter(message.preferredSide ?? "blue", message.encounterTemplateId);
+        bindSession(socket, {
+          roomCode: result.roomCode,
+          side: result.side,
+          seatToken: result.seatToken,
+          connectionId: result.connectionId,
+        });
+        manager.advanceAIEncounter(result.roomCode);
+        const room = manager.getRoom(result.roomCode);
+        const playerView = room ? buildPlayerView(room, result.side) : result.playerView;
+        loggerInstance.info("ai_encounter_create", {
+          roomCode: result.roomCode,
+          side: result.side,
+          connectionId: result.connectionId,
+          version: playerView.version,
+          encounterTemplateId: message.encounterTemplateId ?? null,
+        });
+        sendJoined(socket, {
+          roomCode: result.roomCode,
+          side: result.side,
+          seatToken: result.seatToken,
+          playerView,
+          roomKind: "aiEncounter",
+        });
+        sendAIEncounterUpdate(socket, manager, result.roomCode);
         return;
       }
       case "joinRoom": {
@@ -208,6 +255,7 @@ function createMessageHandler(socket: WebSocket, manager: RoomManager, loggerIns
           side: result.side,
           seatToken: result.seatToken,
           playerView: result.playerView,
+          roomKind: "pvp",
         });
         return;
       }
@@ -230,7 +278,9 @@ function createMessageHandler(socket: WebSocket, manager: RoomManager, loggerIns
           side: result.side,
           seatToken: result.seatToken,
           playerView: result.playerView,
+          roomKind: manager.getRoom(result.roomCode)?.aiEncounter ? "aiEncounter" : "pvp",
         });
+        sendAIEncounterUpdate(socket, manager, result.roomCode);
         return;
       }
       case "submitCommand": {
@@ -257,7 +307,9 @@ function createMessageHandler(socket: WebSocket, manager: RoomManager, loggerIns
           commandType: message.command.type,
           expectedVersion: message.expectedVersion ?? null,
         });
+        manager.advanceAIEncounter(result.roomCode);
         broadcastPlayerViews(result.roomCode, manager);
+        broadcastAIEncounterUpdate(result.roomCode, manager);
         return;
       }
       case "exportReplay": {

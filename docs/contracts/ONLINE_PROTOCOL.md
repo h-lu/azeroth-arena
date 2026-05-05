@@ -14,6 +14,9 @@
 
 - `createRoom`
   - `preferredSide?`
+- `createAIEncounter`
+  - `preferredSide?`
+  - `encounterTemplateId?`
 - `joinRoom`
   - `roomCode`
   - `preferredSide?`
@@ -41,6 +44,7 @@
   - `payload.side`
   - `payload.seatToken`
   - `payload.playerView`
+  - `payload.roomKind`
 - `playerView`
   - `payload` 是完整 `PlayerView`
 - `roomError`
@@ -51,6 +55,20 @@
 - `replayExport`
   - `payload.roomCode`
   - `payload.export`
+- `aiEncounterUpdated`
+  - `payload.roomCode`
+  - `payload.humanSide`
+  - `payload.aiSide`
+  - `payload.encounter`
+  - `payload.persona`
+  - `payload.battlefieldModifiers`
+  - `payload.objectives`
+  - `payload.intentHints`
+  - `payload.dialogue`
+  - `payload.directorTraces`
+  - `payload.decisionTraces` 是脱敏 BotPolicy trace 摘要，只包含 command type、intent、confidence、candidate count 和分数摘要
+  - `payload.replaySummary`
+  - `payload.postGameSummary`
 - `opponentDisconnected`
   - `payload.roomCode`
   - `payload.side`
@@ -94,6 +112,8 @@
 - 房间满员进入 `ROOM_FULL`。
 - 错误信息通过 `roomError` 回传，不应靠异常栈给前端做业务判断。
 - `submitCommand` 成功后会广播最新 `playerView` 给当前仍连接的双方。
+- AI encounter 中，真人 `submitCommand` 成功后服务端可以自动推进 AI 侧，并在推进后广播最新 `playerView` 与 `aiEncounterUpdated`。
+- AI encounter debug payload 只能包含公开 Director 输出、BotPolicy decision trace、公开 replay summary 和脱敏定义；不能包含 AI seat token、connectionId、对手隐藏 hand/deck 明细。
 - 对手断线时会收到 `opponentDisconnected`，但只在另一侧仍在线时发送。
 - 客户端恢复状态使用 `connected / connecting / reconnecting / disconnected / error` 表达，不改变 wire protocol。
 - 客户端可以把当前座位的 `roomCode / side / seatToken` 保存在本地浏览器存储中用于刷新或断线恢复；这些值不能出现在日志、诊断端点或 smoke 结果里。
@@ -117,6 +137,7 @@
 - 再测 `reconnect`：用旧 `seatToken` 应能恢复房间，且 seat 重新变为 connected。
 - 测 `submitCommand`：版本号推进、双方 `playerView` 刷新、错误版本被拒绝。
 - 测 `exportReplay`：拿到 `replayExport`，并且 bundle 与 roomManager 导出的结构一致。
+- 测 `createAIEncounter`：应收到 `roomJoined + playerView + aiEncounterUpdated`，AI 自动推进后版本号增加，debug payload 有 intent/objectives/modifiers/traces 且不泄露 seatToken。
 - 测断线：关闭一个 socket 后，另一侧应收到 `opponentDisconnected`。
 - 测坏包：发送非法 JSON 或字段不全的消息应得到 `BAD_MESSAGE`。
 - 跑真实链路：`npm run smoke:online` 覆盖 `/healthz`、`/debug/rooms` 脱敏、create/join/submit/disconnect/reconnect/stale connection。

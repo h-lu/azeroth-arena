@@ -277,6 +277,44 @@ pre {
   color: #caffde;
 }
 
+.ai-debug-ribbon {
+  position: absolute;
+  top: 62px;
+  left: min(3vw, 42px);
+  right: min(3vw, 42px);
+  z-index: 4;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(240px, 1.1fr) minmax(220px, 1fr);
+  gap: 8px;
+  pointer-events: none;
+}
+
+.ai-debug-ribbon > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px 12px;
+  border: 1px solid rgba(104, 209, 152, 0.34);
+  border-radius: 12px;
+  background: rgba(7, 20, 18, 0.82);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+}
+
+.ai-debug-ribbon strong,
+.ai-debug-ribbon small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-debug-ribbon strong {
+  color: var(--gold-bright);
+}
+
+.ai-debug-ribbon small {
+  color: var(--muted);
+}
+
 .team-band {
   display: grid;
   grid-template-columns: minmax(150px, 0.22fr) minmax(0, 1fr) minmax(150px, 0.22fr);
@@ -1136,6 +1174,49 @@ h2 {
   font-size: 24px;
 }
 
+.ai-debug-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ai-debug-grid > div,
+.ai-debug-item {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(104, 209, 152, 0.2);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(104, 209, 152, 0.045);
+}
+
+.ai-debug-grid span,
+.ai-debug-list > strong {
+  color: var(--gold);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ai-debug-grid strong,
+.ai-debug-item span {
+  color: var(--ink);
+}
+
+.ai-debug-grid small,
+.ai-debug-item small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.ai-debug-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .cooldown-item,
 .log-item {
   display: grid;
@@ -1218,6 +1299,15 @@ h2 {
     display: none;
   }
 
+  .ai-debug-ribbon {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    grid-template-columns: 1fr;
+    pointer-events: auto;
+  }
+
   .team-band,
   .opponent-band,
   .player-band {
@@ -1292,6 +1382,7 @@ h2 {
   }
 
   .resource-grid,
+  .ai-debug-grid,
   .hero-list-item {
     grid-template-columns: 1fr;
   }

@@ -76,6 +76,14 @@
 
 - 先验证 AI-native 是否能被理解，不等待 Unity。
 
+实现状态：
+
+- `createAIEncounter` WebSocket request：创建单人 AI encounter room，默认真人蓝方、AI 红方，也支持偏好座位。
+- `RoomManager.advanceAIEncounter()`：服务端用 BotPolicy 自动推进 AI 侧，每步仍通过合法 `Command` 和权威 `applyCommand`。
+- `aiEncounterUpdated` ServerMessage：下发公开 encounter debug state，不包含 AI seat token、connectionId 或隐藏手牌；BotPolicy trace 只公开脱敏摘要。
+- React Web debug client：菜单里可选择白名单 encounter template 并点击 `AI 遭遇` 进入可玩局。
+- Web debug UI：显示敌方 intent hints、本局 objectives、battlefield modifiers、脱敏 AI decision trace、Director trace、live replay summary 和结束后的 post-game summary。
+
 ### Week 5 — Unity visual prototype
 
 交付：

@@ -232,4 +232,43 @@ describe("Room server diagnostics and observability", () => {
     socketA.close();
     socketC.close();
   });
+
+  test("ws can create a playable AI encounter and publish debug payload", () => {
+    serverBundle = createRoomServer({ logger });
+
+    const socket = new MockSocket();
+    serverBundle.webSocketServer.emit("connection", socket as unknown as never);
+
+    const start = socket.sent.length;
+    socket.emit("message", Buffer.from(JSON.stringify({
+      type: "createAIEncounter",
+      preferredSide: "red",
+      encounterTemplateId: "mentor-stability-check",
+    })));
+    const messages = takeMessages(socket, start);
+    const joined = findMessage(messages, "roomJoined");
+    const view = findMessage(messages, "playerView");
+    const aiDebug = findMessage(messages, "aiEncounterUpdated");
+    const aiDebugPayload = aiDebug?.payload as
+      | {
+          encounter?: { templateId?: string };
+          objectives?: unknown[];
+          battlefieldModifiers?: unknown[];
+          decisionTraces?: unknown[];
+        }
+      | undefined;
+
+    expect(joined?.payload?.roomKind).toBe("aiEncounter");
+    expect(joined?.payload?.side).toBe("red");
+    expect(view?.payload?.version).toBeGreaterThan(1);
+    expect(aiDebugPayload?.encounter).toMatchObject({ templateId: "mentor-stability-check" });
+    expect(aiDebugPayload?.objectives).toEqual(expect.arrayContaining([expect.objectContaining({ id: "protect-own-healer" })]));
+    expect(aiDebugPayload?.battlefieldModifiers).toEqual(expect.arrayContaining([expect.objectContaining({ id: "nagrand-pillars" })]));
+    expect(aiDebugPayload?.decisionTraces?.length ?? 0).toBeGreaterThan(0);
+    expect(JSON.stringify(aiDebug)).not.toContain(String(joined?.payload?.seatToken));
+    expect(JSON.stringify(aiDebugPayload?.decisionTraces ?? [])).not.toContain("cardId");
+    expect(records.map((record) => record.event)).toContain("ai_encounter_create");
+
+    socket.close();
+  });
 });

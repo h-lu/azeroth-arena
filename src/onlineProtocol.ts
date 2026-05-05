@@ -2,6 +2,7 @@ import type { Side } from "../packages/data/src";
 import type { Command, GameEvent, GameState, PlayerState } from "../packages/rules/src";
 
 export type RoomMode = "local" | "online";
+export type OnlineRoomKind = "pvp" | "aiEncounter";
 export type ConnectionStatus = "disconnected" | "connecting" | "reconnecting" | "connected" | "error";
 export type AIEnemyStyle = "aggressive" | "control" | "sustain" | "trickster";
 export type AIPersonaArchetype = "duelist" | "controller" | "mentor" | "trickster" | "rival";
@@ -70,6 +71,52 @@ export interface AIDirectorTrace {
   fallbackUsed: boolean;
 }
 
+export interface PublicAIDecisionCandidateScore {
+  commandType: Command["type"];
+  score: number;
+  intent: string;
+}
+
+export interface PublicAIDecisionTrace {
+  decisionId: string;
+  side: Side;
+  version: number;
+  style: string;
+  selectedCommandType: Command["type"] | null;
+  intent: string;
+  confidence: number;
+  candidateCount: number;
+  candidateScores: PublicAIDecisionCandidateScore[];
+  fallbackUsed: boolean;
+  reason: string;
+}
+
+export interface PublicAIDefinition {
+  id: string;
+  name: string;
+  publicText: string;
+}
+
+export interface AIEncounterDebugState {
+  roomCode: string;
+  humanSide: Side;
+  aiSide: Side;
+  encounter: AIEncounterSpec;
+  persona: AIPersona;
+  battlefieldModifiers: PublicAIDefinition[];
+  objectives: PublicAIDefinition[];
+  intentHints: AIIntentHint[];
+  dialogue: AIDirectorDialogue[];
+  directorTraces: AIDirectorTrace[];
+  decisionTraces: PublicAIDecisionTrace[];
+  replaySummary: RoomPlaytestSummary;
+  postGameSummary: AIPostGameSummary | null;
+  autoAdvance: {
+    lastStepCount: number;
+    lastStoppedReason: "humanTurn" | "winner" | "noLegalCommand" | "maxSteps" | "notAIEncounter";
+  };
+}
+
 export interface PublicPlayerState extends PlayerState {
   hand: string[];
   deck: string[];
@@ -118,6 +165,7 @@ export interface RoomSnapshot {
   activeConnectionCount: number;
   seats: Record<Side, RoomSeatSnapshot | null>;
   replaySummary: RoomPlaytestSummary;
+  roomKind: OnlineRoomKind;
 }
 
 export interface RoomDiagnostics {
@@ -179,6 +227,7 @@ export interface RoomJoinedPayload {
   side: Side;
   seatToken: string;
   playerView: PlayerView;
+  roomKind: OnlineRoomKind;
 }
 
 export interface RoomErrorPayload {
@@ -211,6 +260,11 @@ export interface ReplayExportMessage {
   };
 }
 
+export interface AIEncounterUpdatedMessage {
+  type: "aiEncounterUpdated";
+  payload: AIEncounterDebugState;
+}
+
 export interface OpponentDisconnectedMessage {
   type: "opponentDisconnected";
   payload: {
@@ -224,11 +278,18 @@ export type ServerMessage =
   | PlayerViewMessage
   | RoomErrorMessage
   | ReplayExportMessage
+  | AIEncounterUpdatedMessage
   | OpponentDisconnectedMessage;
 
 export interface CreateRoomRequest {
   type: "createRoom";
   preferredSide?: Side;
+}
+
+export interface CreateAIEncounterRequest {
+  type: "createAIEncounter";
+  preferredSide?: Side;
+  encounterTemplateId?: string;
 }
 
 export interface JoinRoomRequest {
@@ -262,6 +323,7 @@ export interface ExportReplayRequest {
 
 export type ClientMessage =
   | CreateRoomRequest
+  | CreateAIEncounterRequest
   | JoinRoomRequest
   | ReconnectRequest
   | SubmitCommandRequest

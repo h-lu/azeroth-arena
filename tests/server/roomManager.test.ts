@@ -142,4 +142,42 @@ describe("RoomManager online MVP", () => {
       }, undefined, blue.connectionId);
     }, "STALE_CONNECTION");
   });
+
+  test("AI encounter creates a single-human room with public debug state", () => {
+    const manager = new RoomManager();
+    const human = manager.createAIEncounter("red", "trickster-reaction-trap");
+    const room = manager.getRoom(human.roomCode);
+
+    expect(human.side).toBe("red");
+    expect(room?.aiEncounter?.aiSide).toBe("blue");
+    expect(room?.seats.red?.connected).toBe(true);
+    expect(room?.seats.blue?.connected).toBe(false);
+    expect(manager.getDiagnostics().activeConnectionCount).toBe(1);
+
+    const debug = manager.getAIEncounterDebugState(human.roomCode);
+    expect(debug?.humanSide).toBe("red");
+    expect(debug?.aiSide).toBe("blue");
+    expect(debug?.encounter.templateId).toBe("trickster-reaction-trap");
+    expect(debug?.objectives.length).toBeGreaterThan(0);
+    expect(debug?.battlefieldModifiers.length).toBeGreaterThan(0);
+    expect(debug?.intentHints.length).toBeGreaterThan(0);
+    expect(JSON.stringify(debug)).not.toContain(room?.aiEncounter?.aiSeatToken ?? "missing-token");
+    expect(JSON.stringify(debug?.decisionTraces ?? [])).not.toContain("cardId");
+  });
+
+  test("AI encounter auto-advances AI commands through authoritative room state", () => {
+    const manager = new RoomManager();
+    const human = manager.createAIEncounter("red", "rival-burst-check");
+
+    const advance = manager.advanceAIEncounter(human.roomCode, 8);
+    const room = manager.getRoom(human.roomCode);
+    const debug = manager.getAIEncounterDebugState(human.roomCode);
+
+    expect(advance.stepCount).toBeGreaterThan(0);
+    expect(room?.version).toBeGreaterThan(1);
+    expect(debug?.decisionTraces.length).toBeGreaterThan(0);
+    expect(debug?.decisionTraces[0]?.selectedCommandType).toBeTruthy();
+    expect(debug?.replaySummary.commandCount).toBeGreaterThan(0);
+    expect(debug?.autoAdvance.lastStoppedReason).toMatch(/humanTurn|maxSteps|winner|noLegalCommand/);
+  });
 });

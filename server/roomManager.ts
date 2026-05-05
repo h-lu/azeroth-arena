@@ -1,11 +1,28 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { applyCommand, createInitialGameState } from "../packages/rules/src";
+import { applyCommand, createInitialGameState, getLegalCommands } from "../packages/rules/src";
 import type { Command, GameState } from "../packages/rules/src";
 import type { Side } from "../packages/data/src";
+import {
+  AI_PERSONAS,
+  BATTLEFIELD_MODIFIERS,
+  DIRECTOR_OBJECTIVES,
+  createClosingDialogue,
+  createDirectorEncounter,
+  createIntentHint,
+  createPostGameSummary,
+} from "./aiDirector";
+import { chooseBotCommand, type AIDecisionTrace, type BotPolicyStyle } from "./aiBotPolicy";
 import { createReplayExport } from "./playtestExport";
 import { buildPlayerView } from "./playerView";
 import type {
+  AIEncounterDebugState,
+  AIEncounterSpec,
   AIDirectorTrace,
+  AIDirectorDialogue,
+  AIIntentHint,
+  AIPersona,
+  AIPostGameSummary,
+  PublicAIDecisionTrace,
   PlayerView,
   RoomDiagnostics,
   RoomPlaytestSummary,
@@ -14,6 +31,23 @@ import type {
   RoomSeatState,
   RoomSnapshot,
 } from "../src/onlineProtocol";
+
+interface AIEncounterRoomState {
+  humanSide: Side;
+  aiSide: Side;
+  aiSeatToken: string;
+  encounter: AIEncounterSpec;
+  persona: AIPersona;
+  intentHints: AIIntentHint[];
+  dialogue: AIDirectorDialogue[];
+  directorTraces: AIDirectorTrace[];
+  decisionTraces: AIDecisionTrace[];
+  hintedRounds: Set<number>;
+  postGameSummary: AIPostGameSummary | null;
+  summaryRegistered: boolean;
+  lastStepCount: number;
+  lastStoppedReason: AIEncounterDebugState["autoAdvance"]["lastStoppedReason"];
+}
 
 export interface RoomRecord {
   roomCode: string;
@@ -24,6 +58,7 @@ export interface RoomRecord {
   seats: Record<Side, RoomSeatState | null>;
   replay: RoomReplayEntry[];
   killRound: number | null;
+  aiEncounter: AIEncounterRoomState | null;
 }
 
 export interface RoomJoinResult {
@@ -74,6 +109,16 @@ function createSeat(side: Side): RoomSeatState {
   };
 }
 
+function createDisconnectedSeat(side: Side): RoomSeatState {
+  return {
+    side,
+    seatToken: seatToken(),
+    connected: false,
+    connectionId: null,
+    lastSeenAt: now(),
+  };
+}
+
 function chooseSide(preferredSide: Side | undefined, seats: Record<Side, RoomSeatState | null>) {
   if (preferredSide && !seats[preferredSide]) {
     return preferredSide;
@@ -91,6 +136,45 @@ function snapshotSeat(seat: RoomSeatState | null): RoomSeatSnapshot | null {
     side: seat.side,
     connected: seat.connected,
     lastSeenAt: seat.lastSeenAt,
+  };
+}
+
+function sideToAct(state: GameState): Side | null {
+  if (state.pendingReaction) {
+    return state.pendingReaction.stage === "enemy" ? opposite(state.pendingReaction.sourceSide) : state.pendingReaction.sourceSide;
+  }
+  if (state.phase === "between-rounds") {
+    return getLegalCommands(state)[0]?.playerId ?? null;
+  }
+  if (state.phase === "finished") return null;
+  return state.currentPlayer;
+}
+
+function botStyleFor(enemyStyle: AIEncounterSpec["enemyStyle"]): BotPolicyStyle {
+  return enemyStyle === "trickster" ? "control" : enemyStyle;
+}
+
+function byId<T extends { id: string }>(items: readonly T[], id: string) {
+  return items.find((item) => item.id === id) ?? null;
+}
+
+function redactDecisionTrace(trace: AIDecisionTrace): PublicAIDecisionTrace {
+  return {
+    decisionId: trace.decisionId,
+    side: trace.side,
+    version: trace.version,
+    style: trace.style,
+    selectedCommandType: trace.selectedCommand?.type ?? null,
+    intent: trace.intent,
+    confidence: trace.confidence,
+    candidateCount: trace.candidateCount,
+    candidateScores: trace.candidateScores.slice(0, 8).map((candidate) => ({
+      commandType: candidate.command.type,
+      score: candidate.score,
+      intent: candidate.intent,
+    })),
+    fallbackUsed: trace.fallbackUsed,
+    reason: trace.fallbackUsed ? trace.reason : trace.intent,
   };
 }
 
@@ -153,6 +237,7 @@ export class RoomManager {
         red: snapshotSeat(room.seats.red),
       },
       replaySummary,
+      roomKind: room.aiEncounter ? "aiEncounter" : "pvp",
     };
   }
 
@@ -167,6 +252,7 @@ export class RoomManager {
       seats: { blue: null, red: null },
       replay: [],
       killRound: null,
+      aiEncounter: null,
     };
     const side = chooseSide(preferredSide, room.seats);
     room.seats[side] = createSeat(side);
@@ -189,8 +275,71 @@ export class RoomManager {
     };
   }
 
+  createAIEncounter(preferredSide: Side = "blue", encounterTemplateId?: string): RoomJoinResult {
+    const state = createInitialGameState();
+    const humanSide = preferredSide;
+    const aiSide = opposite(humanSide);
+    const room: RoomRecord = {
+      roomCode: roomCode(),
+      createdAt: now(),
+      updatedAt: now(),
+      version: 1,
+      state,
+      seats: { blue: null, red: null },
+      replay: [],
+      killRound: null,
+      aiEncounter: null,
+    };
+    room.seats[humanSide] = createSeat(humanSide);
+    const aiSeat = createDisconnectedSeat(aiSide);
+    room.seats[aiSide] = aiSeat;
+    this.rooms.set(room.roomCode, room);
+    this.registerReplay(room, {
+      kind: "room",
+      type: "createRoom",
+      roomCode: room.roomCode,
+      side: humanSide,
+      timestamp: now(),
+      version: room.version,
+      round: room.state.round,
+    });
+
+    const encounterResult = createDirectorEncounter(room.roomCode, encounterTemplateId);
+    const persona = byId(AI_PERSONAS, encounterResult.encounter.personaId) ?? AI_PERSONAS[0];
+    room.aiEncounter = {
+      humanSide,
+      aiSide,
+      aiSeatToken: aiSeat.seatToken,
+      encounter: encounterResult.encounter,
+      persona,
+      intentHints: [],
+      dialogue: [encounterResult.openingDialogue],
+      directorTraces: [encounterResult.trace, encounterResult.dialogueTrace],
+      decisionTraces: [],
+      hintedRounds: new Set<number>(),
+      postGameSummary: null,
+      summaryRegistered: false,
+      lastStepCount: 0,
+      lastStoppedReason: "humanTurn",
+    };
+    this.registerDirectorTrace(room.roomCode, aiSide, encounterResult.trace);
+    this.registerDirectorTrace(room.roomCode, aiSide, encounterResult.dialogueTrace);
+    this.refreshAIEncounterDirector(room);
+
+    return {
+      roomCode: room.roomCode,
+      side: humanSide,
+      seatToken: room.seats[humanSide]!.seatToken,
+      connectionId: room.seats[humanSide]!.connectionId!,
+      playerView: buildPlayerView(room, humanSide),
+    };
+  }
+
   joinRoom(roomCodeValue: string, preferredSide?: Side): RoomJoinResult {
     const room = this.getRoomOrThrow(roomCodeValue);
+    if (room.aiEncounter) {
+      throw new RoomManagerError("ROOM_FULL", "AI encounter rooms do not accept a second human seat");
+    }
     const side = chooseSide(preferredSide, room.seats);
     room.seats[side] = createSeat(side);
     this.registerReplay(room, {
@@ -269,7 +418,9 @@ export class RoomManager {
     room.state = result.state;
     room.version += 1;
     room.updatedAt = now();
-    seat.connected = true;
+    if (!room.aiEncounter || side !== room.aiEncounter.aiSide) {
+      seat.connected = true;
+    }
     seat.lastSeenAt = room.updatedAt;
     if (room.state.winner && room.killRound === null) {
       room.killRound = room.state.round;
@@ -290,6 +441,7 @@ export class RoomManager {
       trinketUsed: result.events.some((event) => event.type === "trinket"),
     };
     this.registerReplay(room, entry);
+    this.refreshAIEncounterDirector(room);
     return {
       roomCode: room.roomCode,
       side,
@@ -319,6 +471,109 @@ export class RoomManager {
     };
     this.registerReplay(room, entry);
     return entry;
+  }
+
+  private refreshAIEncounterDirector(room: RoomRecord) {
+    const ai = room.aiEncounter;
+    if (!ai) return;
+    if (!ai.hintedRounds.has(room.state.round) && !room.state.winner) {
+      const intent = createIntentHint(room.roomCode, room.version, room.state, ai.encounter, ai.aiSide);
+      ai.intentHints.push(intent.hint);
+      ai.directorTraces.push(intent.trace);
+      this.registerDirectorTrace(room.roomCode, ai.aiSide, intent.trace);
+      ai.hintedRounds.add(room.state.round);
+      if (intent.dialogue && intent.dialogueTrace) {
+        ai.dialogue.push(intent.dialogue);
+        ai.directorTraces.push(intent.dialogueTrace);
+        this.registerDirectorTrace(room.roomCode, ai.aiSide, intent.dialogueTrace);
+      }
+    }
+    if (room.state.winner && !ai.summaryRegistered) {
+      const summary = createReplayExport(room).summary;
+      const summaryResult = createPostGameSummary(room.roomCode, room.replay, summary, ai.encounter, ai.humanSide);
+      const closingDialogue = createClosingDialogue(room.roomCode, summary.version, summary.round, ai.encounter);
+      ai.postGameSummary = summaryResult.summary;
+      ai.dialogue.push(closingDialogue.dialogue);
+      ai.directorTraces.push(summaryResult.trace, closingDialogue.trace);
+      this.registerDirectorTrace(room.roomCode, ai.aiSide, summaryResult.trace);
+      this.registerDirectorTrace(room.roomCode, ai.aiSide, closingDialogue.trace);
+      ai.summaryRegistered = true;
+    }
+  }
+
+  advanceAIEncounter(roomCodeValue: string, maxSteps = 12) {
+    const room = this.getRoomOrThrow(roomCodeValue);
+    const ai = room.aiEncounter;
+    if (!ai) {
+      return { stepCount: 0, stoppedReason: "notAIEncounter" as const };
+    }
+
+    let stepCount = 0;
+    let stoppedReason: AIEncounterDebugState["autoAdvance"]["lastStoppedReason"] = "humanTurn";
+    this.refreshAIEncounterDirector(room);
+    for (; stepCount < maxSteps; stepCount += 1) {
+      if (room.state.winner || room.state.phase === "finished") {
+        stoppedReason = "winner";
+        break;
+      }
+      const actingSide = sideToAct(room.state);
+      if (actingSide !== ai.aiSide) {
+        stoppedReason = "humanTurn";
+        break;
+      }
+
+      const view = buildPlayerView(room, ai.aiSide);
+      const decision = chooseBotCommand(view, botStyleFor(ai.encounter.enemyStyle));
+      ai.decisionTraces.push(decision.trace);
+      if (ai.decisionTraces.length > 40) {
+        ai.decisionTraces.splice(0, ai.decisionTraces.length - 40);
+      }
+      if (!decision.command) {
+        stoppedReason = "noLegalCommand";
+        break;
+      }
+      this.submitCommand(room.roomCode, ai.aiSide, ai.aiSeatToken, decision.command, room.version);
+    }
+    if (stepCount >= maxSteps && stoppedReason === "humanTurn" && sideToAct(room.state) === ai.aiSide) {
+      stoppedReason = "maxSteps";
+    }
+    this.refreshAIEncounterDirector(room);
+    ai.lastStepCount = stepCount;
+    ai.lastStoppedReason = stoppedReason;
+    return { stepCount, stoppedReason };
+  }
+
+  getAIEncounterDebugState(roomCodeValue: string): AIEncounterDebugState | null {
+    const room = this.rooms.get(roomCodeValue);
+    const ai = room?.aiEncounter;
+    if (!room || !ai) return null;
+    this.refreshAIEncounterDirector(room);
+    const replaySummary = createReplayExport(room).summary;
+    return {
+      roomCode: room.roomCode,
+      humanSide: ai.humanSide,
+      aiSide: ai.aiSide,
+      encounter: structuredClone(ai.encounter),
+      persona: structuredClone(ai.persona),
+      battlefieldModifiers: ai.encounter.battlefieldModifierIds
+        .map((modifierId) => byId(BATTLEFIELD_MODIFIERS, modifierId))
+        .filter((modifier): modifier is NonNullable<typeof modifier> => !!modifier)
+        .map((modifier) => ({ ...modifier })),
+      objectives: ai.encounter.objectiveIds
+        .map((objectiveId) => byId(DIRECTOR_OBJECTIVES, objectiveId))
+        .filter((objective): objective is NonNullable<typeof objective> => !!objective)
+        .map((objective) => ({ ...objective })),
+      intentHints: structuredClone(ai.intentHints).slice(-8),
+      dialogue: structuredClone(ai.dialogue).slice(-8),
+      directorTraces: structuredClone(ai.directorTraces).slice(-12),
+      decisionTraces: ai.decisionTraces.slice(-12).map(redactDecisionTrace),
+      replaySummary,
+      postGameSummary: ai.postGameSummary ? structuredClone(ai.postGameSummary) : null,
+      autoAdvance: {
+        lastStepCount: ai.lastStepCount,
+        lastStoppedReason: ai.lastStoppedReason,
+      },
+    };
   }
 
   summarize(roomCodeValue: string): RoomPlaytestSummary {

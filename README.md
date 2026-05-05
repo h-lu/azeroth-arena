@@ -84,6 +84,29 @@ npm run dev:client
 5. 当前行动方提交命令，服务端用 `applyCommand` 权威结算并广播 PlayerView。
 6. 刷新或 socket 断开后，客户端会使用本地保存的 roomCode / side / seatToken 尝试恢复，也可以点击 Reconnect 手动恢复。
 
+## Web AI Encounter Debug
+
+Week 4 增加了 Web debug playable slice，不需要等 Unity：
+
+1. 开两个终端：
+
+```bash
+npm run dev:server
+npm run dev:client
+```
+
+2. 浏览器切到 Online Room，打开菜单，选择 AI Encounter 模板。
+3. 点击 `AI 遭遇` 创建单人 AI 房间。
+4. 玩家提交己方合法命令后，服务端会用 BotPolicy 自动推进 AI 侧，AI 仍走同一条 `submitCommand -> applyCommand` 权威结算路径。
+
+Web debug client 会显示：
+
+- 敌方 intent hint、置信区间和目标倾向。
+- 本局 Director objectives。
+- Battlefield modifiers。
+- 脱敏 AI decision trace 与 Director trace。
+- Live replay summary 与结束后的 replay-based post-game summary。
+
 客户端在线状态：
 
 - `已连接`：已收到当前座位的 PlayerView。
@@ -95,10 +118,12 @@ npm run dev:client
 服务端消息支持：
 
 - `createRoom`
+- `createAIEncounter`
 - `joinRoom`
 - `reconnect`
 - `submitCommand`
 - `exportReplay`
+- `aiEncounterUpdated`
 
 服务端保证：
 
