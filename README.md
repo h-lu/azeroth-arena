@@ -13,6 +13,17 @@ tests/golden/          规则 golden tests
 tests/server/          房间 / PlayerView / replay tests
 ```
 
+## 设计文档
+
+当前 MVP 已实现规则裁判、Web 沙盒和在线房间。下一阶段方向是 AI-native + Unity client，相关设计文档：
+
+- `docs/vision/AI_NATIVE_GAME_DESIGN.md`：AI-native 产品定位与核心体验。
+- `docs/architecture/AI_NATIVE_ARCHITECTURE.md`：TS rules/server、AI、Unity 的架构边界。
+- `docs/ai/AI_PLAYER_SPEC.md`：AI 玩家合法动作选择、策略、记忆和安全边界。
+- `docs/ai/AI_DIRECTOR_SPEC.md`：AI Director 的遭遇、意图、复盘和审计设计。
+- `docs/unity/UNITY_CLIENT_ARCHITECTURE.md`：Unity 客户端场景、Prefab、交互和 VisualCommandQueue。
+- `docs/roadmap/AI_NATIVE_ROADMAP.md`：6 周 / 12 周落地路线。
+
 ## 安装与验证
 
 ```bash
@@ -22,6 +33,7 @@ npm run typecheck
 npm run build
 npm run smoke:online
 npm run playtest:command-parity
+npm run playtest:ai-bot
 ```
 
 当前验证基线：
@@ -30,6 +42,7 @@ npm run playtest:command-parity
 - `npm run typecheck`：`tsc --noEmit` 通过。
 - `npm run build`：Vite production build 通过。
 - `npm run smoke:online`：启动真实房间服务并覆盖 `/healthz`、`/debug/rooms` 脱敏、WebSocket create/join/submit/disconnect/reconnect/stale connection。
+- `npm run playtest:ai-bot`：运行非 LLM BotPolicy 的 AI vs AI 固定步数 smoke，并在 `playtest-results/ai-bot/` 输出 JSON trace 与 Markdown 摘要。
 
 ## 本地热座
 
@@ -118,6 +131,19 @@ npm run smoke:online
 - CSV summary：roomCode、version、round、winner、responseWindowCount、interruptCount、trinketUseCount 等。
 - Markdown summary：便于复盘。
 
+AI baseline playtest：
+
+```bash
+npm run playtest:ai-bot
+```
+
+默认配置为蓝方 `aggressive`、红方 `sustain`，最多执行 80 个合法 command。可选环境变量：
+
+- `AI_BOT_MAX_STEPS=120`：调整固定步数上限。
+- `AI_BOT_RESULT_DIR=path/to/output`：调整 JSON/Markdown 输出目录。
+
+BotPolicy 不接实时 LLM，只从 `PlayerView.legalCommands` 中选择动作；每个候选动作会生成稳定 `actionId`，每次选择会输出 AI decision trace。
+
 ## 已实现规则范围
 
 - 6 个英雄：盗贼、法师、牧师、战士、术士、德鲁伊。
@@ -138,7 +164,7 @@ npm run smoke:online
 
 - 不是 50 张卡的自然语言效果都已做到最终精确版；核心测试卡已接入解释器，其余卡保留 MVP 级行为。
 - 在线服务端使用内存房间；重启服务会丢失房间。
-- 首版无账号、匹配、排行榜、观战、AI、持久化。
+- 首版无账号、匹配、排行榜、观战、持久化；AI 目前仅包含非 LLM BotPolicy baseline 和离线 AI vs AI smoke。
 - 响应窗口首版手动 pass，无倒计时裁决。
 
 ## 下一步

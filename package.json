@@ -16,6 +16,7 @@
     "dev:online": "node scripts/dev-online.mjs",
     "playtest:mechanics": "node --import tsx scripts/playtest-mechanics.mjs",
     "playtest:command-parity": "node --import tsx scripts/playtest-command-parity.mjs",
+    "playtest:ai-bot": "node --import tsx scripts/playtest-ai-bot.mjs",
     "smoke:online": "node scripts/online-smoke.mjs"
   },
   "dependencies": {
