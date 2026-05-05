@@ -165,6 +165,55 @@ describe("RoomManager online MVP", () => {
     expect(JSON.stringify(debug?.decisionTraces ?? [])).not.toContain("cardId");
   });
 
+  test("AI encounter public director traces redact hidden future-LLM payload fields", () => {
+    const manager = new RoomManager();
+    const human = manager.createAIEncounter("blue", "rival-burst-check");
+    const room = manager.getRoom(human.roomCode);
+
+    room?.aiEncounter?.directorTraces.push({
+      traceId: "unsafe_future_trace",
+      roomCode: human.roomCode,
+      version: room.version,
+      source: "llm",
+      inputSummary: "hidden hand contains secret-card and command details",
+      outputType: "intent",
+      output: {
+        publicText: "safe hint",
+        hand: ["secret-card"],
+        deck: ["secret-deck-card"],
+        command: { type: "playCard", cardId: "secret-card-id" },
+        nested: { cardId: "nested-secret-card-id" },
+      },
+      latencyMs: 1,
+      fallbackUsed: false,
+    });
+
+    const debug = manager.getAIEncounterDebugState(human.roomCode);
+    const trace = debug?.directorTraces.find((item) => item.traceId === "unsafe_future_trace");
+    const publicJson = JSON.stringify(trace);
+
+    expect(trace?.outputPreview).toMatchObject({ publicText: "safe hint" });
+    expect(trace?.redactedFieldCount).toBeGreaterThanOrEqual(5);
+    expect(trace).not.toHaveProperty("output");
+    expect(publicJson).not.toContain("secret-card");
+    expect(publicJson).not.toContain("secret-deck-card");
+    expect(publicJson).not.toContain("secret-card-id");
+    expect(publicJson).not.toContain("nested-secret-card-id");
+    expect(publicJson).not.toContain("\"hand\"");
+    expect(publicJson).not.toContain("\"deck\"");
+    expect(publicJson).not.toContain("\"command\"");
+    expect(publicJson).not.toContain("\"cardId\"");
+  });
+
+  test("AI encounter rooms reject a second human join", () => {
+    const manager = new RoomManager();
+    const human = manager.createAIEncounter("blue", "mentor-stability-check");
+
+    expectRoomError(() => {
+      manager.joinRoom(human.roomCode, "red");
+    }, "ROOM_FULL");
+  });
+
   test("AI encounter auto-advances AI commands through authoritative room state", () => {
     const manager = new RoomManager();
     const human = manager.createAIEncounter("red", "rival-burst-check");

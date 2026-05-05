@@ -271,4 +271,36 @@ describe("Room server diagnostics and observability", () => {
 
     socket.close();
   });
+
+  test("ws rejects joinRoom attempts against AI encounter rooms", () => {
+    serverBundle = createRoomServer({ logger });
+
+    const creator = new MockSocket();
+    const joiner = new MockSocket();
+    serverBundle.webSocketServer.emit("connection", creator as unknown as never);
+    serverBundle.webSocketServer.emit("connection", joiner as unknown as never);
+
+    creator.emit("message", Buffer.from(JSON.stringify({
+      type: "createAIEncounter",
+      preferredSide: "blue",
+      encounterTemplateId: "rival-burst-check",
+    })));
+    const created = findMessage(takeMessages(creator), "roomJoined");
+    const roomCode = String(created?.payload?.roomCode);
+
+    const joinStart = joiner.sent.length;
+    joiner.emit("message", Buffer.from(JSON.stringify({
+      type: "joinRoom",
+      roomCode,
+      preferredSide: "red",
+    })));
+    const joinMessages = takeMessages(joiner, joinStart);
+    const error = findMessage(joinMessages, "roomError");
+
+    expect(error?.payload?.code).toBe("ROOM_FULL");
+    expect(findMessage(joinMessages, "roomJoined")).toBeNull();
+
+    creator.close();
+    joiner.close();
+  });
 });

@@ -685,6 +685,9 @@ export default function App() {
   const opponentHp = opponentHeroes.reduce((sum, hero) => sum + hero.hp, 0);
   const playerMaxHp = playerHeroes.reduce((sum, hero) => sum + hero.maxHp, 0);
   const opponentMaxHp = opponentHeroes.reduce((sum, hero) => sum + hero.maxHp, 0);
+  const opponentHandCount = mode === "online" && onlineView
+    ? onlineView.state.players[opponentSide].handCount
+    : activeState.players[opponentSide].hand.length;
   const latestIntentHint = aiEncounterDebug?.intentHints.at(-1) ?? null;
   const latestAIDecision = aiEncounterDebug?.decisionTraces.at(-1) ?? null;
   const latestAIDialogue = aiEncounterDebug?.dialogue.at(-1) ?? null;
@@ -1516,7 +1519,7 @@ export default function App() {
             <div className="team-crest opponent">
               <span>{sideLabel(opponentSide)} 对手</span>
               <strong>{opponentHp}/{opponentMaxHp}</strong>
-              <small>专注 {activeState.players[opponentSide].focusAvailable} · 手牌 {activeState.players[opponentSide].hand.length}</small>
+              <small>专注 {activeState.players[opponentSide].focusAvailable} · 手牌 {opponentHandCount}</small>
             </div>
             <div className="hero-slot-row arena-heroes opponent-heroes">
               {opponentHeroes.map((hero) => renderHeroSlot(hero, "opponent"))}

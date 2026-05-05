@@ -71,6 +71,12 @@ export interface AIDirectorTrace {
   fallbackUsed: boolean;
 }
 
+export interface PublicAIDirectorTrace extends Omit<AIDirectorTrace, "inputSummary" | "output"> {
+  inputSummary: string;
+  outputPreview: unknown;
+  redactedFieldCount: number;
+}
+
 export interface PublicAIDecisionCandidateScore {
   commandType: Command["type"];
   score: number;
@@ -107,7 +113,7 @@ export interface AIEncounterDebugState {
   objectives: PublicAIDefinition[];
   intentHints: AIIntentHint[];
   dialogue: AIDirectorDialogue[];
-  directorTraces: AIDirectorTrace[];
+  directorTraces: PublicAIDirectorTrace[];
   decisionTraces: PublicAIDecisionTrace[];
   replaySummary: RoomPlaytestSummary;
   postGameSummary: AIPostGameSummary | null;

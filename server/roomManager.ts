@@ -22,6 +22,7 @@ import type {
   AIIntentHint,
   AIPersona,
   AIPostGameSummary,
+  PublicAIDirectorTrace,
   PublicAIDecisionTrace,
   PlayerView,
   RoomDiagnostics,
@@ -175,6 +176,73 @@ function redactDecisionTrace(trace: AIDecisionTrace): PublicAIDecisionTrace {
     })),
     fallbackUsed: trace.fallbackUsed,
     reason: trace.fallbackUsed ? trace.reason : trace.intent,
+  };
+}
+
+const DIRECTOR_TRACE_SENSITIVE_KEYS = new Set([
+  "cardid",
+  "cardids",
+  "command",
+  "commands",
+  "deck",
+  "discard",
+  "hand",
+  "hidden",
+  "legalcommands",
+  "messages",
+  "prompt",
+  "seatToken",
+  "selectedcommand",
+  "system",
+  "token",
+].map((key) => key.toLowerCase()));
+
+function redactDirectorText(value: string, path: string, redactedFields: string[]) {
+  if (/\b(cardId|command|deck|hand|seatToken|token|hidden|system prompt)\b/i.test(value)) {
+    redactedFields.push(path);
+    return "[redacted]";
+  }
+  return value;
+}
+
+function redactDirectorValue(value: unknown, path: string, redactedFields: string[]): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item, index) => redactDirectorValue(item, `${path}[${index}]`, redactedFields));
+  }
+  if (value && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, entryValue] of Object.entries(value as Record<string, unknown>)) {
+      const childPath = `${path}.${key}`;
+      if (DIRECTOR_TRACE_SENSITIVE_KEYS.has(key.toLowerCase())) {
+        redactedFields.push(childPath);
+        result[`redactedField${redactedFields.length}`] = "[redacted]";
+        continue;
+      }
+      result[key] = redactDirectorValue(entryValue, childPath, redactedFields);
+    }
+    return result;
+  }
+  if (typeof value === "string") {
+    return redactDirectorText(value, path, redactedFields);
+  }
+  return value;
+}
+
+function redactDirectorTrace(trace: AIDirectorTrace): PublicAIDirectorTrace {
+  const redactedFields: string[] = [];
+  const outputPreview = redactDirectorValue(trace.output, "output", redactedFields);
+  const inputSummary = redactDirectorText(trace.inputSummary, "inputSummary", redactedFields);
+  return {
+    traceId: trace.traceId,
+    roomCode: trace.roomCode,
+    version: trace.version,
+    source: trace.source,
+    inputSummary,
+    outputType: trace.outputType,
+    outputPreview,
+    latencyMs: trace.latencyMs,
+    fallbackUsed: trace.fallbackUsed,
+    redactedFieldCount: redactedFields.length,
   };
 }
 
@@ -565,7 +633,7 @@ export class RoomManager {
         .map((objective) => ({ ...objective })),
       intentHints: structuredClone(ai.intentHints).slice(-8),
       dialogue: structuredClone(ai.dialogue).slice(-8),
-      directorTraces: structuredClone(ai.directorTraces).slice(-12),
+      directorTraces: ai.directorTraces.slice(-12).map(redactDirectorTrace),
       decisionTraces: ai.decisionTraces.slice(-12).map(redactDecisionTrace),
       replaySummary,
       postGameSummary: ai.postGameSummary ? structuredClone(ai.postGameSummary) : null,
