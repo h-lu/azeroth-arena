@@ -35,6 +35,7 @@ npm run smoke:online
 npm run playtest:command-parity
 npm run playtest:ai-bot
 npm run playtest:ai-director
+npm run playtest:ai-vertical-slice
 ```
 
 当前验证基线：
@@ -45,6 +46,7 @@ npm run playtest:ai-director
 - `npm run smoke:online`：启动真实房间服务并覆盖 `/healthz`、`/debug/rooms` 脱敏、WebSocket create/join/submit/disconnect/reconnect/stale connection。
 - `npm run playtest:ai-bot`：运行非 LLM BotPolicy 的 AI vs AI 固定步数 smoke，并在 `playtest-results/ai-bot/` 输出 JSON trace、Director v0 trace 与 Markdown 摘要。
 - `npm run playtest:ai-director`：运行 Director v0 重点 smoke，并在 `playtest-results/ai-director/` 输出 encounter、intent hints、模板短台词、赛后复盘与可 replay trace。
+- `npm run playtest:ai-vertical-slice`：运行 Week 6 三场 AI-native vertical slice，并在 `playtest-results/ai-vertical-slice/` 输出每场 replay / AI 复盘，同时更新 `docs/playtest/week-6-vertical-slice-report.md`。
 
 ## 本地热座
 
@@ -174,7 +176,7 @@ BotPolicy 不接实时 LLM，只从 `PlayerView.legalCommands` 中选择动作�
 
 AI Director v0 playtest：
 
-- `server/aiDirector.ts` 提供 3 个白名单 persona、encounter templates、battlefield modifiers 和 objectives。
+- `server/aiDirector.ts` 提供 3 个白名单 persona、5 个 encounter templates、battlefield modifiers 和 objectives。
 - 每局开局输出 `AIEncounterSpec` 与模板短台词。
 - 每个新 round 输出公开 `AIIntentHint`，只包含威胁类型、目标倾向和模糊置信度，不展示隐藏手牌或完整行动树。
 - 对局结束后基于 replay counters / command entries 生成 `AIPostGameSummary`。
@@ -185,6 +187,22 @@ AI Director v0 playtest：
 - `AI_DIRECTOR_MAX_STEPS=120`：调整固定步数上限。
 - `AI_DIRECTOR_RESULT_DIR=path/to/output`：调整 JSON/Markdown 输出目录。
 - `AI_DIRECTOR_ENCOUNTER_TEMPLATE_ID=trickster-reaction-trap`：选择白名单 encounter template；未知模板会 fallback 到默认白名单模板并记录 trace。
+
+Week 6 vertical slice playtest：
+
+- 覆盖每方 3 英雄阵容、`aggressive` / `control` / `sustain` 三种 AI 风格、5 个 Director 白名单模板。
+- 固定运行 3 场 encounter run，每场输出 replay JSON 和 AI 复盘 Markdown。
+- 汇总报告写入 `docs/playtest/week-6-vertical-slice-report.md`，便于随 repo 审阅。
+
+```bash
+npm run playtest:ai-vertical-slice
+```
+
+可选环境变量：
+
+- `AI_VERTICAL_SLICE_MAX_STEPS=120`：调整每场固定步数上限。
+- `AI_VERTICAL_SLICE_RESULT_DIR=path/to/output`：调整 replay / 复盘产物目录。
+- `AI_VERTICAL_SLICE_REPORT_PATH=docs/playtest/custom-report.md`：调整 repo 内汇总报告路径。
 
 ## Unity Visual Prototype
 

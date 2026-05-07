@@ -3,7 +3,15 @@ import { resolve } from "node:path";
 import { getLegalCommands } from "../packages/rules/src";
 import type { Side } from "../packages/data/src";
 import type { Command } from "../packages/rules/src";
-import type { AIDirectorDialogue, AIDirectorTrace, AIEncounterSpec, AIIntentHint, AIPostGameSummary, RoomPlaytestSummary } from "../src/onlineProtocol";
+import type {
+  AIDirectorDialogue,
+  AIDirectorTrace,
+  AIEncounterSpec,
+  AIIntentHint,
+  AIPostGameSummary,
+  RoomPlaytestSummary,
+  RoomReplayEntry,
+} from "../src/onlineProtocol";
 import { createClosingDialogue, createDirectorEncounter, createIntentHint, createPostGameSummary } from "./aiDirector";
 import { chooseBotCommand, type AIDecisionTrace, type BotPolicyStyle } from "./aiBotPolicy";
 import { buildPlayerView } from "./playerView";
@@ -32,6 +40,7 @@ export interface AIBotPlaytestResult {
   summary: RoomPlaytestSummary;
   steps: AIBotPlaytestStep[];
   traces: AIDecisionTrace[];
+  replay: RoomReplayEntry[];
   director: AIBotPlaytestDirectorOutput | null;
   stoppedReason: "winner" | "maxSteps" | "noLegalCommand" | "commandRejected";
   json: string;
@@ -98,6 +107,7 @@ function markdownFor(result: Omit<AIBotPlaytestResult, "json" | "markdown">) {
     `- Interrupts: \`${result.summary.interruptCount}\``,
     `- Trinkets: \`${result.summary.trinketUseCount}\``,
     `- Decisions: \`${result.traces.length}\``,
+    `- Replay entries: \`${result.replay.length}\``,
     "",
     "## Decision Tail",
     "",
@@ -241,6 +251,7 @@ export function runAIBotPlaytest(options: AIBotPlaytestOptions = {}): AIBotPlayt
     summary: manager.summarize(blue.roomCode),
     steps,
     traces: steps.map((step) => step.trace),
+    replay: structuredClone(room.replay),
     director,
     stoppedReason,
   };

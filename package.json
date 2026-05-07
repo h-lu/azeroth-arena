@@ -19,6 +19,7 @@
     "playtest:command-parity": "node --import tsx scripts/playtest-command-parity.mjs",
     "playtest:ai-bot": "node --import tsx scripts/playtest-ai-bot.mjs",
     "playtest:ai-director": "node --import tsx scripts/playtest-ai-director.mjs",
+    "playtest:ai-vertical-slice": "node --import tsx scripts/playtest-ai-vertical-slice.mjs",
     "smoke:online": "node scripts/online-smoke.mjs"
   },
   "dependencies": {

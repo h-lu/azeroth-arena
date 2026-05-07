@@ -13,11 +13,17 @@ import { runAIBotPlaytest } from "../../server/aiBotPlaytest";
 import { RoomManager } from "../../server/roomManager";
 
 describe("AI Director v0", () => {
-  test("defines three personas and whitelisted encounter templates", () => {
+  test("defines three personas and five whitelisted encounter templates", () => {
     expect(AI_PERSONAS.map((persona) => persona.id)).toEqual(["arena-rival", "calm-mentor", "control-trickster"]);
     expect(BATTLEFIELD_MODIFIERS.length).toBeGreaterThanOrEqual(3);
     expect(DIRECTOR_OBJECTIVES.length).toBeGreaterThanOrEqual(3);
-    expect(ENCOUNTER_TEMPLATES.length).toBeGreaterThanOrEqual(3);
+    expect(ENCOUNTER_TEMPLATES.map((template) => template.id)).toEqual([
+      "rival-burst-check",
+      "mentor-stability-check",
+      "trickster-reaction-trap",
+      "sustain-dampening-race",
+      "controller-caster-lock",
+    ]);
     expect(() => validateDirectorWhitelists()).not.toThrow();
   });
 
@@ -66,6 +72,7 @@ describe("AI Director v0", () => {
 
     const parsed = JSON.parse(result.json);
     expect(parsed.director.postGameSummary.decisiveMoment).toBe(result.director?.postGameSummary.decisiveMoment);
+    expect(parsed.replay.length).toBeGreaterThan(0);
     expect(result.markdown).toContain("AI Director v0");
   });
 

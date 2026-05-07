@@ -118,6 +118,16 @@ export const BATTLEFIELD_MODIFIERS = [
     name: "Center Pressure",
     publicText: "The AI prefers contesting center when it has tempo.",
   },
+  {
+    id: "reaction-mind-games",
+    name: "Reaction Mind Games",
+    publicText: "The AI delays some payoffs to test whether reactions are spent early.",
+  },
+  {
+    id: "healer-mana-race",
+    name: "Healer Mana Race",
+    publicText: "The AI treats repeated recovery as a long resource race, not a reset.",
+  },
 ] satisfies BattlefieldModifierDef[];
 
 export const DIRECTOR_OBJECTIVES = [
@@ -140,6 +150,16 @@ export const DIRECTOR_OBJECTIVES = [
     id: "win-reaction-trades",
     name: "Win Reaction Trades",
     publicText: "Bait interrupts or defensive reactions before key cards.",
+  },
+  {
+    id: "survive-opening-burst",
+    name: "Survive Opening Burst",
+    publicText: "Avoid losing the first exchange before the run plan comes online.",
+  },
+  {
+    id: "punish-overextension",
+    name: "Punish Overextension",
+    publicText: "Look for a counterattack when a damage dealer moves too far ahead of support.",
   },
 ] satisfies ObjectiveDef[];
 
@@ -191,6 +211,38 @@ export const ENCOUNTER_TEMPLATES = [
       closing: "The trap was never the first spell.",
     },
     defaultThreatType: "control",
+  },
+  {
+    id: "sustain-dampening-race",
+    name: "Sustain Dampening Race",
+    personaId: "calm-mentor",
+    enemyStyle: "sustain",
+    battlefieldModifierIds: ["dampening-clock", "healer-mana-race"],
+    objectiveIds: ["protect-own-healer", "survive-opening-burst"],
+    openingIntent: "The mentor will absorb the opener, preserve the healer, and make later rounds matter.",
+    shortDialogue: {
+      opening: "The first exchange is not the match.",
+      advantage: "Your pressure is fading before mine is.",
+      behind: "That opener was clean; now prove it was not all you had.",
+      closing: "Track the recovery turns. That is where the race changed.",
+    },
+    defaultThreatType: "heal",
+  },
+  {
+    id: "controller-caster-lock",
+    name: "Controller Caster Lock",
+    personaId: "control-trickster",
+    enemyStyle: "control",
+    battlefieldModifierIds: ["reaction-mind-games", "center-pressure"],
+    objectiveIds: ["pressure-enemy-caster", "punish-overextension"],
+    openingIntent: "The trickster will threaten caster lockouts, then punish anyone who steps out without cover.",
+    shortDialogue: {
+      opening: "Step into the open and the cast never finishes.",
+      advantage: "That position gave me the lock.",
+      behind: "You broke the line before I could close it.",
+      closing: "The replay will show the square you should not have crossed.",
+    },
+    defaultThreatType: "interrupt",
   },
 ] satisfies EncounterTemplate[];
 

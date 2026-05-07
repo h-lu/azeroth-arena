@@ -160,7 +160,7 @@ MVP 不接实时 LLM 或只异步接。
 当前 v0 位于 `server/aiDirector.ts`，不接实时 LLM：
 
 - `AI_PERSONAS`：`arena-rival`、`calm-mentor`、`control-trickster` 三个白名单 persona。
-- `ENCOUNTER_TEMPLATES`：`rival-burst-check`、`mentor-stability-check`、`trickster-reaction-trap` 三个白名单模板。
+- `ENCOUNTER_TEMPLATES`：`rival-burst-check`、`mentor-stability-check`、`trickster-reaction-trap`、`sustain-dampening-race`、`controller-caster-lock` 五个白名单模板。
 - `BATTLEFIELD_MODIFIERS` / `DIRECTOR_OBJECTIVES`：模板只能引用白名单 id，`validateDirectorWhitelists()` 会校验引用。
 - `createDirectorEncounter()`：根据 roomCode、templateId、seed 生成确定性 `AIEncounterSpec`；未知模板会 fallback 到默认白名单模板并在 trace 标记 `fallbackUsed`。
 - `createIntentHint()`：每个新 round 基于公开 `GameState` 指标生成 `AIIntentHint`，不展示隐藏手牌、牌库或完整行动树。
@@ -172,6 +172,7 @@ MVP 不接实时 LLM 或只异步接。
 ```bash
 npm test -- tests/server/aiDirector.test.ts
 npm run playtest:ai-director
+npm run playtest:ai-vertical-slice
 ```
 
 ## 审计

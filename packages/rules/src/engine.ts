@@ -1443,17 +1443,22 @@ export function getLegalCommands(state: GameState): Command[] {
     }
   }
   const hand = getPlayer(state, state.currentPlayer).hand;
+  const player = getPlayer(state, state.currentPlayer);
   for (const cardId of hand) {
     const card = CARD_BY_ID[cardId];
     if (!card || !canUseCardWithHero(card, hero)) continue;
     if (isReactionOnlyCard(card)) continue;
     if (state.round === 1 && isBurstCard(card)) continue;
+    if (player.focusAvailable < cardCost(card)) continue;
     if (hero.nextActivationNoKeyMove && (isMovementWindow(card) || card.effectKey === "key-move" || card.effectKey === "key-move-shield")) continue;
     try {
       const targetIds = inferTargetIdsForCard(state, hero, card);
       const toZone = inferToZoneForCard(state, hero, card, targetIds);
       const revealedCardId = card.id === "043-common-fake-cast" ? chooseFakeCastReveal(state, state.currentPlayer, hero) : undefined;
-      cmds.push({ type: "playCard", playerId: state.currentPlayer, sourceHeroId: hero.id, cardId, targetIds, toZone, revealedCardId });
+      const command = { type: "playCard" as const, playerId: state.currentPlayer, sourceHeroId: hero.id, cardId, targetIds, toZone, revealedCardId };
+      const targets = determineCardTargets(state, hero, card, targetIds);
+      validatePlayCardOptions(card, targets, command);
+      cmds.push(command);
     } catch {
       // skip impossible targets
     }
@@ -1461,7 +1466,7 @@ export function getLegalCommands(state: GameState): Command[] {
   return cmds;
 }
 
-function inferToZoneForCard(state: GameState, hero: HeroState, card: CardDef, targetIds: string[]) {
+function inferToZoneForCard(state: GameState, hero: HeroState, card: CardDef, targetIds: string[]): ZoneId | undefined {
   if (!["022-priest-psychic-scream", "042-druid-wild-charge", "044-common-pillar-dance", "048-common-tactical-retreat"].includes(card.id)) {
     return undefined;
   }

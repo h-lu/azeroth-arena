@@ -127,6 +127,13 @@
 - 试玩者能说出“AI 不是随机 bot”。
 - 复盘能指出关键回合。
 
+实现状态：
+
+- `server/aiDirector.ts`：Director 白名单扩展到 5 个 encounter templates，覆盖 burst、mentor stability、reaction trap、sustain dampening、caster lock 五类遭遇。
+- `server/aiVerticalSlicePlaytest.ts`：Week 6 三场 run 编排，固定覆盖每方 3 英雄、`aggressive` / `control` / `sustain` 三种 AI 风格、replay 计数、intent/command mix 和 AI 复盘摘要。
+- `scripts/playtest-ai-vertical-slice.mjs` / `npm run playtest:ai-vertical-slice`：输出每场 replay JSON、AI review Markdown、汇总 JSON/Markdown，并更新 repo 内 playtest report。
+- `docs/playtest/week-6-vertical-slice-report.md`：保存最近一次 Week 6 vertical slice playtest report，便于人工审阅 AI 是否表现为非随机 bot。
+
 ## 12 周路线
 
 ### Week 7-8 — Unity 接 WebSocket
