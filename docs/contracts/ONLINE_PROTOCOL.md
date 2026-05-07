@@ -2,7 +2,7 @@
 
 ## 目的
 
-冻结 `ws://` 私人房间的消息协议，覆盖客户端 `src/onlineProtocol.ts`、服务端 `server/index.ts` / `server/roomManager.ts` 以及 `PlayerView` / replay 导出之间的边界。
+冻结 `ws://` 私人房间的消息协议，覆盖 Web 客户端 `src/onlineProtocol.ts`、Unity 临时 DTO `unity-client/Assets/AzerothArena/Scripts/Protocol/`、服务端 `server/index.ts` / `server/roomManager.ts` 以及 `PlayerView` / replay 导出之间的边界。
 
 这份合同只描述当前 MVP 已经实现的协议，不扩展匹配、观战、账号或持久化。
 
@@ -141,3 +141,4 @@
 - 测断线：关闭一个 socket 后，另一侧应收到 `opponentDisconnected`。
 - 测坏包：发送非法 JSON 或字段不全的消息应得到 `BAD_MESSAGE`。
 - 跑真实链路：`npm run smoke:online` 覆盖 `/healthz`、`/debug/rooms` 脱敏、create/join/submit/disconnect/reconnect/stale connection。
+- 跑 Unity 静态合同校验：`npm run validate:unity-websocket` 覆盖 Unity DTO / transport / room client 文件存在性、消息名对齐和 Newtonsoft JSON 依赖。

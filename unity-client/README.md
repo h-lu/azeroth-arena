@@ -1,6 +1,6 @@
-# Azeroth Arena Unity Visual Prototype
+# Azeroth Arena Unity Client
 
-This is the Week 5 Unity visual prototype scaffold. It is intentionally local-only and does not connect to the WebSocket server yet.
+This Unity project contains the Week 5 visual prototype and the Week 7 WebSocket foundation.
 
 Open `unity-client/` as a Unity project, then load:
 
@@ -21,3 +21,26 @@ Included prototype deliverables:
 - `Assets/AzerothArena/Scripts/AI/AIOpponentView.cs`
 
 The scene uses `MatchVisualPrototypeBootstrap` to create a mock board, fan-shaped hand, draggable cards, and an AI opponent panel with a thinking ring and intent bar. The mock `VisualCommandQueue` plays a short loop so the first view has motion even without a server.
+
+## Week 7 WebSocket Foundation
+
+The server connection layer lives under:
+
+```text
+Assets/AzerothArena/Scripts/Protocol/
+Assets/AzerothArena/Scripts/State/
+```
+
+It includes temporary C# DTOs for the current TypeScript online protocol, a `ClientWebSocket` transport, a `UnityRoomClient` facade, and `ClientSnapshotStore` for the latest room session and `PlayerView`.
+
+Unity package dependency:
+
+```text
+com.unity.nuget.newtonsoft-json
+```
+
+Repo-side static validation:
+
+```bash
+npm run validate:unity-websocket
+```

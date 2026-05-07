@@ -36,6 +36,7 @@ npm run playtest:command-parity
 npm run playtest:ai-bot
 npm run playtest:ai-director
 npm run playtest:ai-vertical-slice
+npm run validate:unity-websocket
 ```
 
 当前验证基线：
@@ -47,6 +48,7 @@ npm run playtest:ai-vertical-slice
 - `npm run playtest:ai-bot`：运行非 LLM BotPolicy 的 AI vs AI 固定步数 smoke，并在 `playtest-results/ai-bot/` 输出 JSON trace、Director v0 trace 与 Markdown 摘要。
 - `npm run playtest:ai-director`：运行 Director v0 重点 smoke，并在 `playtest-results/ai-director/` 输出 encounter、intent hints、模板短台词、赛后复盘与可 replay trace。
 - `npm run playtest:ai-vertical-slice`：运行 Week 6 三场 AI-native vertical slice，并在 `playtest-results/ai-vertical-slice/` 输出每场 replay / AI 复盘，同时更新 `docs/playtest/week-6-vertical-slice-report.md`。
+- `npm run validate:unity-websocket`：静态校验 Week 7 Unity WebSocket DTO、transport、room client、snapshot store 与当前在线协议消息名对齐。
 
 ## 本地热座
 
@@ -224,6 +226,22 @@ unity-client/Assets/AzerothArena/Scenes/Match.unity
 
 ```bash
 npm run validate:unity-prototype
+```
+
+## Unity WebSocket Foundation
+
+Week 7 增加了 Unity 连接房间服务的基础层，仍由 TypeScript server / rules 权威结算：
+
+- `Scripts/Protocol/ClientMessageModels.cs` / `ServerEventModels.cs`：当前在线协议的临时 DTO，使用 Unity 官方 Newtonsoft JSON 包承载动态 `PlayerView.state` 和 `legalCommands`。
+- `Scripts/Protocol/GameProtocol.cs`：消息名常量、序列化、server message envelope 解析和合法 command JSON 克隆。
+- `Scripts/Protocol/WebSocketTransport.cs`：基于 `ClientWebSocket` 的 Unity transport，接收消息在 `Update()` 中派发回主线程。
+- `Scripts/Protocol/UnityRoomClient.cs`：创建 PvP 房间、创建 AI encounter、加入、重连、提交已有合法 command、导出 replay 的薄客户端。
+- `Scripts/State/ClientSnapshotStore.cs`：保存 `roomCode`、`side`、`seatToken`、`PlayerView`、AI encounter debug state 和最近 server error。
+
+静态校验：
+
+```bash
+npm run validate:unity-websocket
 ```
 
 ## 已实现规则范围

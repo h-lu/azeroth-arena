@@ -146,6 +146,21 @@
 - 发送 `submitCommand`。
 - 服务端拒绝时 Unity 回弹/提示。
 
+Week 7 实现状态：
+
+- `unity-client/Assets/AzerothArena/Scripts/Protocol/ClientMessageModels.cs` / `ServerEventModels.cs`：临时 C# DTO 覆盖当前在线协议的 client/server message envelope、room joined、player view、room error、AI encounter debug 和 replay export。
+- `GameProtocol.cs`：集中维护 `createRoom`、`createAIEncounter`、`joinRoom`、`reconnect`、`submitCommand`、`exportReplay` 与 server message 常量，使用 Newtonsoft JSON 序列化动态 `PlayerView.state` / `legalCommands`。
+- `WebSocketTransport.cs`：Unity `ClientWebSocket` transport，支持 connect / send / receive loop / disconnect，并在 Unity `Update()` 中派发收到的文本消息。
+- `UnityRoomClient.cs`：提供 create room、create AI encounter、join、reconnect、submit existing legal command、export replay 的薄客户端 API。
+- `ClientSnapshotStore.cs`：保存当前 session、最新 `PlayerView`、AI encounter debug state、对手断线和 server error，用于 Week 8 接入真实 HUD / 输入回弹。
+- `npm run validate:unity-websocket`：静态校验 Week 7 Unity WebSocket 文件、消息名与 Unity Newtonsoft 包依赖。
+
+Week 8 留存范围：
+
+- 正式目标选择 UX。
+- server reject 后的具体卡牌回弹 / toast 视觉表现。
+- DTO codegen 管线与 VisualCommandQueue 的正式事件映射。
+
 ### Week 9 — VisualCommandQueue 正式化
 
 交付：

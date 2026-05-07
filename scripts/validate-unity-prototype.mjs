@@ -36,13 +36,6 @@ const requiredFiles = [
   "unity-client/Assets/AzerothArena/Scripts/MatchVisualPrototypeBootstrap.cs.meta"
 ];
 
-const requiredAbsentFiles = [
-  "unity-client/Assets/AzerothArena/Scripts/Protocol/WebSocketTransport.cs",
-  "unity-client/Assets/AzerothArena/Scripts/Protocol/GameProtocol.cs",
-  "unity-client/Assets/AzerothArena/Scripts/Protocol/ClientMessageModels.cs",
-  "unity-client/Assets/AzerothArena/Scripts/Protocol/ServerEventModels.cs"
-];
-
 const requiredMarkers = new Map([
   ["unity-client/Assets/AzerothArena/Scenes/Match.unity", ["MatchVisualPrototype", "MatchVisualPrototypeBootstrap"]],
   ["unity-client/Assets/AzerothArena/Prefabs/Cards/CardView.prefab", ["m_Name: CardView"]],
@@ -77,15 +70,6 @@ for (const file of requiredFiles) {
     }
   } catch {
     failures.push(`${file} is missing`);
-  }
-}
-
-for (const file of requiredAbsentFiles) {
-  try {
-    statSync(join(root, file));
-    failures.push(`${file} should not exist in Week 5 local-only prototype scope`);
-  } catch {
-    // Expected: Week 5 is visual-only and does not add protocol transport.
   }
 }
 

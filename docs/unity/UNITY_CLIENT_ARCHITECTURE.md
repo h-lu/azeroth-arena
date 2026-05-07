@@ -239,3 +239,37 @@ AI 思考节奏：
 ```bash
 npm run validate:unity-prototype
 ```
+
+## Week 7 WebSocket Foundation
+
+Week 7 starts the real server connection layer without moving rule authority into Unity.
+
+Added scripts:
+
+```text
+Scripts/
+  Protocol/
+    ClientMessageModels.cs
+    ServerEventModels.cs
+    GameProtocol.cs
+    WebSocketTransport.cs
+    UnityRoomClient.cs
+  State/
+    ClientSnapshotStore.cs
+```
+
+Responsibilities:
+
+- `ClientMessageModels.cs` and `ServerEventModels.cs` are temporary DTOs for the existing TypeScript online protocol.
+- `GameProtocol.cs` owns message constants and JSON serialization / parsing.
+- `WebSocketTransport.cs` owns `ClientWebSocket` lifecycle and text message delivery.
+- `UnityRoomClient.cs` exposes create room, create AI encounter, join, reconnect, submit an already-legal command, and export replay.
+- `ClientSnapshotStore.cs` stores session credentials, latest `PlayerView`, AI encounter debug payload, and last `roomError`.
+
+Validation:
+
+```bash
+npm run validate:unity-websocket
+```
+
+Week 8 should wire this foundation into the real match HUD, target selection, rejection rebound/prompt UI, and the formal event-to-`VisualCommandQueue` path.
