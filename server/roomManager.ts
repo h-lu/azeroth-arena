@@ -522,7 +522,7 @@ export class RoomManager {
   exportReplay(roomCodeValue: string, side: Side, seatTokenValue: string): ReturnType<typeof createReplayExport> {
     const room = this.getRoomOrThrow(roomCodeValue);
     this.verifySeat(room, side, seatTokenValue);
-    return createReplayExport(room);
+    return createReplayExport(room, side);
   }
 
   registerDirectorTrace(roomCodeValue: string, side: Side, trace: AIDirectorTrace) {

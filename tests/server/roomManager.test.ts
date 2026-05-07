@@ -84,6 +84,59 @@ describe("RoomManager online MVP", () => {
     expect(JSON.parse(bundle.json).summary.roomCode).toBe(blue.roomCode);
   });
 
+  test("replay export redacts opponent hidden state and raw director traces", () => {
+    const manager = new RoomManager();
+    const human = manager.createAIEncounter("blue", "rival-burst-check");
+    const room = manager.getRoom(human.roomCode);
+
+    manager.registerDirectorTrace(human.roomCode, "red", {
+      traceId: "unsafe-export-trace",
+      roomCode: human.roomCode,
+      version: room?.version,
+      source: "llm",
+      inputSummary: "hidden hand contains secret-card and command details",
+      outputType: "intent",
+      output: {
+        publicText: "safe hint",
+        hand: ["secret-card"],
+        deck: ["secret-deck-card"],
+        command: { type: "playCard", cardId: "secret-card-id" },
+        nested: { cardId: "nested-secret-card-id" },
+      },
+      latencyMs: 1,
+      fallbackUsed: false,
+    });
+
+    const bundle = manager.exportReplay(human.roomCode, "blue", human.seatToken);
+    const parsed = JSON.parse(bundle.json) as {
+      finalState: { players: { red: { hand: string[]; deck: string[]; handCount: number; deckCount: number } } };
+      replayEvents: Array<{ directorTrace?: Record<string, unknown> }>;
+    };
+    const exportedTrace = parsed.replayEvents.find((entry) => entry.directorTrace?.traceId === "unsafe-export-trace")?.directorTrace;
+    const exportJson = JSON.stringify(parsed);
+    const traceJson = JSON.stringify(exportedTrace);
+
+    expect(parsed.finalState.players.red.hand).toEqual([]);
+    expect(parsed.finalState.players.red.deck).toEqual([]);
+    expect(parsed.finalState.players.red.handCount).toBeGreaterThan(0);
+    expect(parsed.finalState.players.red.deckCount).toBeGreaterThan(0);
+
+    expect(exportedTrace).toMatchObject({
+      traceId: "unsafe-export-trace",
+      inputSummary: "[redacted]",
+      outputPreview: { publicText: "safe hint" },
+    });
+    expect(exportedTrace).not.toHaveProperty("output");
+    expect(exportJson).not.toContain("secret-card");
+    expect(exportJson).not.toContain("secret-deck-card");
+    expect(exportJson).not.toContain("secret-card-id");
+    expect(exportJson).not.toContain("nested-secret-card-id");
+    expect(traceJson).not.toContain('"hand"');
+    expect(traceJson).not.toContain('"deck"');
+    expect(traceJson).not.toContain('"command"');
+    expect(traceJson).not.toContain('"cardId"');
+  });
+
   test("room snapshot excludes seat tokens and summarizes active connections", () => {
     const manager = new RoomManager();
     const blue = manager.createRoom("blue");

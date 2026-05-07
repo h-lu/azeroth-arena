@@ -16,6 +16,7 @@ import type {
   ServerMessage,
 } from "../src/onlineProtocol";
 import type { Side } from "../packages/data/src";
+import type { Command } from "../packages/rules/src";
 import type { RoomManager } from "./roomManager";
 
 type SocketSession = {
@@ -182,6 +183,105 @@ function handleError(socket: WebSocket, loggerInstance: StructuredLogger, error:
   sendRoomError(socket, payload);
 }
 
+function badMessage(message: string): never {
+  throw new RoomManagerError("BAD_MESSAGE", message);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isSide(value: unknown): value is Side {
+  return value === "blue" || value === "red";
+}
+
+function optionalSide(value: unknown, fieldName: string): Side | undefined {
+  if (value === undefined) return undefined;
+  if (isSide(value)) return value;
+  badMessage(`${fieldName} must be blue or red`);
+}
+
+function requiredString(value: unknown, fieldName: string) {
+  if (typeof value === "string" && value.length > 0) return value;
+  badMessage(`${fieldName} must be a non-empty string`);
+}
+
+function optionalString(value: unknown, fieldName: string) {
+  if (value === undefined) return undefined;
+  return requiredString(value, fieldName);
+}
+
+function optionalNumber(value: unknown, fieldName: string) {
+  if (value === undefined) return undefined;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  badMessage(`${fieldName} must be a finite number`);
+}
+
+function requiredCommand(value: unknown) {
+  if (!isRecord(value) || typeof value.type !== "string" || !isSide(value.playerId)) {
+    badMessage("command must include type and playerId");
+  }
+  return value as Command;
+}
+
+function parseClientMessage(raw: string): ClientMessage {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    badMessage("invalid JSON message");
+  }
+
+  if (!isRecord(value) || typeof value.type !== "string") {
+    badMessage("message type is required");
+  }
+
+  switch (value.type) {
+    case "createRoom":
+      return {
+        type: "createRoom",
+        preferredSide: optionalSide(value.preferredSide, "preferredSide"),
+      };
+    case "createAIEncounter":
+      return {
+        type: "createAIEncounter",
+        preferredSide: optionalSide(value.preferredSide, "preferredSide"),
+        encounterTemplateId: optionalString(value.encounterTemplateId, "encounterTemplateId"),
+      };
+    case "joinRoom":
+      return {
+        type: "joinRoom",
+        roomCode: requiredString(value.roomCode, "roomCode"),
+        preferredSide: optionalSide(value.preferredSide, "preferredSide"),
+      };
+    case "reconnect":
+      return {
+        type: "reconnect",
+        roomCode: requiredString(value.roomCode, "roomCode"),
+        side: isSide(value.side) ? value.side : badMessage("side must be blue or red"),
+        seatToken: requiredString(value.seatToken, "seatToken"),
+      };
+    case "submitCommand":
+      return {
+        type: "submitCommand",
+        roomCode: requiredString(value.roomCode, "roomCode"),
+        side: isSide(value.side) ? value.side : badMessage("side must be blue or red"),
+        seatToken: requiredString(value.seatToken, "seatToken"),
+        command: requiredCommand(value.command),
+        expectedVersion: optionalNumber(value.expectedVersion, "expectedVersion"),
+      };
+    case "exportReplay":
+      return {
+        type: "exportReplay",
+        roomCode: requiredString(value.roomCode, "roomCode"),
+        side: isSide(value.side) ? value.side : badMessage("side must be blue or red"),
+        seatToken: requiredString(value.seatToken, "seatToken"),
+      };
+    default:
+      badMessage(`unknown message type: ${value.type}`);
+  }
+}
+
 function createMessageHandler(socket: WebSocket, manager: RoomManager, loggerInstance: StructuredLogger) {
   return (message: ClientMessage) => {
     switch (message.type) {
@@ -336,7 +436,7 @@ function createSocketLifecycleHandlers(socket: WebSocket, manager: RoomManager, 
 
   socket.on("message", (data) => {
     try {
-      const parsed = JSON.parse(data.toString()) as ClientMessage;
+      const parsed = parseClientMessage(data.toString());
       handleMessage(parsed);
     } catch (error) {
       handleError(socket, loggerInstance, error, { transport: "ws" });

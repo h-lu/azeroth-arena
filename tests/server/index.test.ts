@@ -272,6 +272,31 @@ describe("Room server diagnostics and observability", () => {
     socket.close();
   });
 
+  test("ws reports BAD_MESSAGE for malformed JSON, unknown types, and invalid fields", () => {
+    serverBundle = createRoomServer({ logger });
+
+    const socket = new MockSocket();
+    serverBundle.webSocketServer.emit("connection", socket as unknown as never);
+
+    let start = socket.sent.length;
+    socket.emit("message", Buffer.from("{not-json"));
+    expect(findMessage(takeMessages(socket, start), "roomError")?.payload?.code).toBe("BAD_MESSAGE");
+
+    start = socket.sent.length;
+    socket.emit("message", Buffer.from(JSON.stringify({ type: "totallyUnknown" })));
+    expect(findMessage(takeMessages(socket, start), "roomError")?.payload?.code).toBe("BAD_MESSAGE");
+
+    start = socket.sent.length;
+    socket.emit("message", Buffer.from(JSON.stringify({ type: "createAIEncounter", preferredSide: "green" })));
+    expect(findMessage(takeMessages(socket, start), "roomError")?.payload?.code).toBe("BAD_MESSAGE");
+
+    start = socket.sent.length;
+    socket.emit("message", Buffer.from(JSON.stringify({ type: "submitCommand", roomCode: "ABC123", side: "blue", seatToken: "token" })));
+    expect(findMessage(takeMessages(socket, start), "roomError")?.payload?.code).toBe("BAD_MESSAGE");
+
+    socket.close();
+  });
+
   test("ws rejects joinRoom attempts against AI encounter rooms", () => {
     serverBundle = createRoomServer({ logger });
 

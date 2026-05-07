@@ -1,5 +1,11 @@
 import type { RoomRecord } from "./roomManager";
-import type { ReplayExportBundle, RoomPlaytestSummary, RoomReplayEntry } from "../src/onlineProtocol";
+import { buildPlayerView } from "./playerView";
+import type { Side } from "../packages/data/src";
+import type { AIDirectorTrace, PublicAIDirectorTrace, ReplayExportBundle, RoomPlaytestSummary, RoomReplayEntry } from "../src/onlineProtocol";
+
+type PublicReplayEntry = Omit<RoomReplayEntry, "directorTrace"> & {
+  directorTrace?: PublicAIDirectorTrace;
+};
 
 function countEntries(entries: RoomReplayEntry[], predicate: (entry: RoomReplayEntry) => boolean) {
   return entries.reduce((count, entry) => count + (predicate(entry) ? 1 : 0), 0);
@@ -31,15 +37,94 @@ function buildSummary(room: RoomRecord): RoomPlaytestSummary {
   };
 }
 
-function buildJson(room: RoomRecord, summary: RoomPlaytestSummary) {
+const DIRECTOR_TRACE_SENSITIVE_KEYS = new Set([
+  "cardid",
+  "cardids",
+  "command",
+  "commands",
+  "deck",
+  "discard",
+  "hand",
+  "hidden",
+  "legalcommands",
+  "messages",
+  "prompt",
+  "seatToken",
+  "selectedcommand",
+  "system",
+  "token",
+].map((key) => key.toLowerCase()));
+
+function redactDirectorText(value: string, path: string, redactedFields: string[]) {
+  if (/\b(cardId|command|deck|hand|seatToken|token|hidden|system prompt)\b/i.test(value)) {
+    redactedFields.push(path);
+    return "[redacted]";
+  }
+  return value;
+}
+
+function redactDirectorValue(value: unknown, path: string, redactedFields: string[]): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item, index) => redactDirectorValue(item, `${path}[${index}]`, redactedFields));
+  }
+  if (value && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, entryValue] of Object.entries(value as Record<string, unknown>)) {
+      const childPath = `${path}.${key}`;
+      if (DIRECTOR_TRACE_SENSITIVE_KEYS.has(key.toLowerCase())) {
+        redactedFields.push(childPath);
+        result[`redactedField${redactedFields.length}`] = "[redacted]";
+        continue;
+      }
+      result[key] = redactDirectorValue(entryValue, childPath, redactedFields);
+    }
+    return result;
+  }
+  if (typeof value === "string") {
+    return redactDirectorText(value, path, redactedFields);
+  }
+  return value;
+}
+
+function redactDirectorTrace(trace: AIDirectorTrace): PublicAIDirectorTrace {
+  const redactedFields: string[] = [];
+  const outputPreview = redactDirectorValue(trace.output, "output", redactedFields);
+  const inputSummary = redactDirectorText(trace.inputSummary, "inputSummary", redactedFields);
+  return {
+    traceId: trace.traceId,
+    roomCode: trace.roomCode,
+    version: trace.version,
+    source: trace.source,
+    inputSummary,
+    outputType: trace.outputType,
+    outputPreview,
+    latencyMs: trace.latencyMs,
+    fallbackUsed: trace.fallbackUsed,
+    redactedFieldCount: redactedFields.length,
+  };
+}
+
+function buildPublicReplayEvents(room: RoomRecord): PublicReplayEntry[] {
+  return room.replay.map((entry) => {
+    if (!entry.directorTrace) {
+      return structuredClone(entry) as PublicReplayEntry;
+    }
+    return {
+      ...structuredClone(entry),
+      directorTrace: redactDirectorTrace(entry.directorTrace),
+    };
+  });
+}
+
+function buildJson(room: RoomRecord, viewerSide: Side, summary: RoomPlaytestSummary) {
   return JSON.stringify(
     {
       roomCode: room.roomCode,
       createdAt: room.createdAt,
       updatedAt: room.updatedAt,
       summary,
-      replayEvents: room.replay,
-      finalState: room.state,
+      replayEvents: buildPublicReplayEvents(room),
+      finalState: buildPlayerView(room, viewerSide).state,
     },
     null,
     2,
@@ -110,11 +195,11 @@ function buildMarkdown(room: RoomRecord, summary: RoomPlaytestSummary) {
   return lines.join("\n");
 }
 
-export function createReplayExport(room: RoomRecord): ReplayExportBundle {
+export function createReplayExport(room: RoomRecord, viewerSide: Side = "blue"): ReplayExportBundle {
   const summary = buildSummary(room);
   return {
     summary,
-    json: buildJson(room, summary),
+    json: buildJson(room, viewerSide, summary),
     csv: buildCsv(summary),
     markdown: buildMarkdown(room, summary),
   };
