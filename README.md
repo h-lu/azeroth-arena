@@ -37,6 +37,7 @@ npm run playtest:ai-bot
 npm run playtest:ai-director
 npm run playtest:ai-director-v1
 npm run playtest:ai-vertical-slice
+npm run package:week12-demo
 npm run validate:unity-websocket
 npm run generate:unity-protocol-manifest -- --check
 ```
@@ -52,6 +53,7 @@ npm run generate:unity-protocol-manifest -- --check
   - 最新 AI Director v0 playtest：`playtest-results/ai-director/ai-bot-playtest.md`，stop reason `maxSteps`，final round 4，80 commands，8 response windows，1 interrupt；Turn 3 recorded an interrupt。
 - `npm run playtest:ai-director-v1`：运行 Week 10 三场 Director v1 run，并在 `playtest-results/ai-director-v1/` 输出多局 memory、结构化复盘、AI cost / latency / fallback metrics，同时更新 `docs/playtest/week-10-ai-director-v1-report.md`。
 - `npm run playtest:ai-vertical-slice`：运行 Week 6 三场 AI-native vertical slice，并在 `playtest-results/ai-vertical-slice/` 输出每场 replay / AI 复盘，同时更新 `docs/playtest/week-6-vertical-slice-report.md`。
+- `npm run package:week12-demo`：运行 Week 12 四场 demo package run，并在 `playtest-results/week-12-demo-package/` 输出每场 replay、AI trace audit、复盘、demo transcript，同时更新 `docs/playtest/week-12-demo-package-report.md`。
 - `npm run validate:unity-websocket`：静态校验 Week 7-11 Unity WebSocket DTO、transport、room client、snapshot store、HUD / target selection / reject feedback / typed event mapping / replay queue、移动端触控手感组件与当前协议对齐。
 - `npm run generate:unity-protocol-manifest -- --check`：校验 Unity 协议 manifest 与 TS protocol / rules command / GameEvent type 源保持一致。
 
@@ -212,6 +214,24 @@ npm run playtest:ai-director-v1
 - `AI_DIRECTOR_V1_MAX_STEPS=120`：调整每场固定步数上限。
 - `AI_DIRECTOR_V1_RESULT_DIR=path/to/output`：调整 JSON/Markdown 输出目录。
 - `AI_DIRECTOR_V1_REPORT_PATH=docs/playtest/custom-report.md`：调整 repo 内汇总报告路径。
+
+Week 12 demo package：
+
+- 固定运行 4 场 AI-native demo run，满足 Week 12 的 3-5 战 run 范围。
+- 跨 run 传递 `AIPlayerMemory`。
+- 每场输出 replay JSON、AI trace audit JSON、AI review Markdown 和可读 demo transcript。
+- 汇总报告写入 `docs/playtest/week-12-demo-package-report.md`，包含 Unity source-ready 证据和下一阶段 iOS / TestFlight 决策。
+- 真实 Unity 二进制 build 仍需要 Unity editor 环境；本 repo 内校验入口是 `npm run validate:unity-websocket`。
+
+```bash
+npm run package:week12-demo
+```
+
+可选环境变量：
+
+- `WEEK12_DEMO_MAX_STEPS=260`：调整每场固定步数上限。
+- `WEEK12_DEMO_RESULT_DIR=path/to/output`：调整 demo package 输出目录。
+- `WEEK12_DEMO_REPORT_PATH=docs/playtest/custom-week-12-report.md`：调整 repo 内汇总报告路径。
 
 Week 6 vertical slice playtest：
 

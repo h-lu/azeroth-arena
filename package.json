@@ -23,6 +23,7 @@
     "playtest:ai-director": "node --import tsx scripts/playtest-ai-director.mjs",
     "playtest:ai-director-v1": "node --import tsx scripts/playtest-ai-director-v1.mjs",
     "playtest:ai-vertical-slice": "node --import tsx scripts/playtest-ai-vertical-slice.mjs",
+    "package:week12-demo": "node --import tsx scripts/package-week12-demo.mjs",
     "smoke:online": "node scripts/online-smoke.mjs"
   },
   "dependencies": {

@@ -239,6 +239,14 @@ Week 8 实现状态：
 - AI trace 可审计。
 - 下一阶段 iOS / TestFlight 决策。
 
+实现状态：
+
+- `server/aiDemoPackagePlaytest.ts`：Week 12 demo package runner，固定运行 4 场 AI-native demo run，满足 3-5 战范围，并跨 run 传递 `AIPlayerMemory`。
+- `scripts/package-week12-demo.mjs` / `npm run package:week12-demo`：输出 `playtest-results/week-12-demo-package/` 下的 replay JSON、AI trace audit JSON、AI review Markdown 和 demo transcript。
+- `docs/playtest/week-12-demo-package-report.md`：保存最近一次 Week 12 demo package 汇总，包含 Web debug 保留状态、Unity source-ready demo evidence 和 iOS / TestFlight 决策。
+- Unity demo evidence 当前以 source-ready 包形式交付：`Match.unity`、WebSocket client、VisualCommandQueue、移动端手感层由 `npm run validate:unity-websocket` 校验；真实二进制 build 需要 Unity editor 环境执行。
+- 下一阶段 iOS / TestFlight 决策：defer，等 Unity player build、真机横屏触控检查、日志/崩溃收集和签名流程通过后再进入 TestFlight。
+
 ## MVP 必砍
 
 - 卡包 / 商店 / 经济系统。
