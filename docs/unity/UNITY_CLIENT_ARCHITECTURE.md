@@ -273,3 +273,116 @@ npm run validate:unity-websocket
 ```
 
 Week 8 should wire this foundation into the real match HUD, target selection, rejection rebound/prompt UI, and the formal event-to-`VisualCommandQueue` path.
+
+## Week 8 Match HUD / Input Wiring
+
+Week 8 completes the remaining Unity WebSocket connection slice without taking Week 9's full animation scope.
+
+Added scripts:
+
+```text
+Scripts/
+  Input/
+    InputPermissionGuard.cs
+    TargetSelectionController.cs
+  UI/
+    MatchHud.cs
+    ToastPromptView.cs
+  Commands/
+    VisualCommandFactory.cs
+Generated/
+  OnlineProtocolManifest.json
+```
+
+Responsibilities:
+
+- `InputPermissionGuard` gates command submission on active session state, current `PlayerView`, legal commands, and queue input lock.
+- `TargetSelectionController` implements the target-selection state machine by filtering already-legal command JSON from `ClientSnapshotStore.LegalCommands`; Unity still does not synthesize rule outcomes.
+- `CardDragController.RequestRebound()` gives rejected drags a concrete rebound signal.
+- `MatchHud` subscribes to `UnityRoomClient` and `TargetSelectionController` to display room/version/turn/legal-command state and rejection toast prompts.
+- `VisualCommandFactory` maps `PlayerView.state.log` deltas into placeholder `VisualCommandQueue` entries and ends each batch with snapshot reconcile. Week 9 can replace these placeholders with full typed animation commands.
+- `scripts/generate-unity-protocol-manifest.mjs` writes/checks `OnlineProtocolManifest.json`, documenting the current TS protocol source of truth and Unity temporary DTO mapping.
+
+Validation:
+
+```bash
+npm run validate:unity-websocket
+npm run generate:unity-protocol-manifest -- --check
+```
+
+## Week 9 VisualCommandQueue Formalization
+
+Week 9 replaces the Week 8 placeholder event beat with typed visual commands while keeping TypeScript as the rules authority.
+
+Added / updated contracts:
+
+```text
+packages/rules/src/types.ts
+  GameEventPayloadByType
+  GameEventType
+  GameEvent
+
+Scripts/
+  Commands/
+    VisualCommandFactory.cs
+      BuildGameEventCommand
+      BuildReplayVisualCommands
+      DrawCardsVisualCommand
+      PlayCardVisualCommand
+      DamageVisualCommand
+      EntityDefeatedVisualCommand
+      RoundStartVisualCommand
+      SnapshotReconcileVisualCommand
+```
+
+Responsibilities:
+
+- `GameEvent` is now a discriminated union, so event payloads are typed at the rules/server boundary.
+- Live `PlayerView.state.log` deltas and replay export command events both go through `VisualCommandFactory.BuildGameEventCommand()`.
+- `card-drawn` drives draw animation without exposing hidden card ids; actual hand contents come from the viewer-specific snapshot during reconcile.
+- `card-played`, `damage` / `end-round-damage`, `knockout`, and `round-start` map to named queue commands with blocking behavior.
+- `SnapshotReconcileVisualCommand` remains the final command in both live and replay paths.
+
+Validation:
+
+```bash
+npm run validate:unity-websocket
+npm run generate:unity-protocol-manifest -- --check
+```
+
+## Week 11 Mobile-First Polish
+
+Week 11 focuses on the Unity client feel layer for iPhone landscape without changing rule authority or advancing into Week 12 demo packaging.
+
+Added / updated scripts:
+
+```text
+Scripts/
+  UI/
+    SafeAreaFitter.cs
+    TouchTargetExpander.cs
+    CardLongPressPreview.cs
+    ReactionWindowMobilePrompt.cs
+  Input/
+    TargetSnapController.cs
+    CardDragController.cs
+    TargetSelectionController.cs
+  Visual/
+    MobileFeedbackController.cs
+```
+
+Responsibilities:
+
+- `SafeAreaFitter` applies `Screen.safeArea` to the match canvas and constrains wide landscape screens back to the 16:9 logical play frame.
+- `TouchTargetExpander` enforces a minimum 64x64 UI hit area for mobile buttons and cards.
+- `CardLongPressPreview` shows a large card preview after a short hold, then hides it on drag, pointer exit, or release.
+- `TargetSnapController` registers board/entity anchors, filters by `TargetSelectionController.CurrentState.SelectableTargetIds`, and lets drag release snap into `SelectTarget()` without creating rules client-side.
+- `ReactionWindowMobilePrompt` exposes pass and trinket actions during `resolveReaction` windows using the same legal-command submission path as desktop HUD controls.
+- `MobileFeedbackController` centralizes audio cue hooks and mobile haptics for drag start, target snap, rejected actions, and submit.
+- `MatchVisualPrototypeBootstrap` mounts the safe-area, long-press preview, touch target, and feedback components in the local visual prototype so the mobile feel layer can be inspected before a full Unity build.
+
+Validation:
+
+```bash
+npm run validate:unity-websocket
+```

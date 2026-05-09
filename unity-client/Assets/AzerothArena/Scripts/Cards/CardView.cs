@@ -20,6 +20,8 @@ namespace AzerothArena.Cards
         [SerializeField] private Color draggingGlow = new Color(0.4f, 0.82f, 1f, 0.55f);
 
         public string CardId { get; private set; } = string.Empty;
+        public string DisplayName { get; private set; } = string.Empty;
+        public string RulesText { get; private set; } = string.Empty;
         public bool IsPlayable { get; private set; }
         public RectTransform RectTransform => rectTransform != null ? rectTransform : (RectTransform)transform;
 
@@ -57,6 +59,8 @@ namespace AzerothArena.Cards
         public void Bind(string cardId, string displayName, int cost, string rulesText, bool isPlayable)
         {
             CardId = cardId;
+            DisplayName = displayName;
+            RulesText = rulesText;
             IsPlayable = isPlayable;
 
             if (costText != null)

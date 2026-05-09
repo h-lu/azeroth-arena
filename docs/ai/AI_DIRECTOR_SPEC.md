@@ -175,6 +175,23 @@ npm run playtest:ai-director
 npm run playtest:ai-vertical-slice
 ```
 
+## Week 10 v1 实现
+
+Director v1 在 v0 的白名单与 replay 约束上增加多局体验能力，仍不让 AI 裁决规则：
+
+- `ENCOUNTER_TEMPLATES` 扩展为 15 个白名单模板，覆盖 burst、mentor stability、reaction trap、dampening、caster lock、finisher、target discipline、overextension、reaction audit、healer stress、memory rematch、pass punish、control loop、memory feint、line tax。
+- `AIPlayerMemory` 从公开 replay counters 派生并跨 playtest run 传入下一局，记录 `matchCount`、早交饰品率、换集火率、反应 pass 偏好、偏好目标角色、压力画像和最近 notes。
+- `AIPostGameSummary.structuredReview` 提供可渲染结构：result counters、key moments、复盘 sections，不依赖自由发挥剧情。
+- `AIObservabilityMetrics` 汇总 Director trace 数、Bot decision trace 数、估算 AI 成本、latency total/average/max、Director 和 Bot fallback 次数。
+- `server/aiDirectorV1Playtest.ts` 编排 3 场 Week 10 run，跨局传递 memory 并输出 JSON / Markdown / repo 内报告。
+
+验证入口：
+
+```bash
+npm test -- tests/server/aiDirector.test.ts
+npm run playtest:ai-director-v1
+```
+
 ## 审计
 
 每次 Director 输出都记录：

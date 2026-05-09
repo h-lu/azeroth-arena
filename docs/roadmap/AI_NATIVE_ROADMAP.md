@@ -161,6 +161,16 @@ Week 8 留存范围：
 - server reject 后的具体卡牌回弹 / toast 视觉表现。
 - DTO codegen 管线与 VisualCommandQueue 的正式事件映射。
 
+Week 8 实现状态：
+
+- `InputPermissionGuard`：Unity 输入提交前检查 session、`PlayerView`、`legalCommands` 和 `VisualCommandQueue.InputLocked`，避免动画或过期快照期间提交。
+- `TargetSelectionController`：正式目标选择 UX 的代码层基础；它只从 `ClientSnapshotStore.LegalCommands` 中筛选完整 command，支持按卡牌、按 command type 或合法命令 index 开始目标选择，选择目标后用 `UnityRoomClient.SubmitCommandAsync()` 提交。
+- `CardDragController` / `TargetSelectionController` / `MatchHud`：server `roomError` 和本地非法选择都会触发 `ReboundRequested`，HUD 同时显示 toast。
+- `MatchHud` / `ToastPromptView`：连接状态、房间/版本、回合、合法命令数量和目标选择提示的 match-facing HUD 状态层。
+- `VisualCommandFactory`：从 `PlayerView.state.log` 增量读取 server events，映射为 `VisualCommandQueue` 占位命令并在最后执行 snapshot reconcile；不提前实现 Week 9 的完整抽牌/出牌/伤害/死亡动画。
+- `OnlineProtocolManifest.json` / `scripts/generate-unity-protocol-manifest.mjs`：新增协议 manifest 生成与 `--check` 校验路径，固定 TS 协议源、client/server message、rules command type 与 Unity 临时 DTO 的对应关系。
+- `npm run validate:unity-websocket`：扩展为 Week 7-8 静态校验，覆盖新增 HUD、目标选择、拒绝反馈、事件映射和 manifest。
+
 ### Week 9 — VisualCommandQueue 正式化
 
 交付：
@@ -171,6 +181,14 @@ Week 8 留存范围：
 - Snapshot reconcile。
 - 回放也走同一队列。
 
+实现状态：
+
+- `packages/rules/src/types.ts`：`GameEvent` 从 loose payload 升级为 `GameEventPayloadByType` 驱动的 discriminated union，覆盖当前 rules engine 事件，并新增公开安全的 `card-drawn` 事件。
+- `packages/rules/src/engine.ts`：回合开始抽牌会记录不泄露卡牌 id 的 `card-drawn`，反应窗口记录 `reaction-opened` / `reaction-resolved`，`applyCommand()` 和 room replay 继续输出同一批强类型事件。
+- `unity-client/Assets/AzerothArena/Scripts/Commands/VisualCommandFactory.cs`：正式映射 `card-drawn`、`card-played`、`damage` / `end-round-damage`、`knockout`、`round-start` 到命名 `VisualCommand`，每批末尾保留 `SnapshotReconcileVisualCommand`。
+- `VisualCommandFactory.BuildReplayVisualCommands()`：replay export 的 command events 通过同一个 `BuildGameEventCommand()` 入口进入队列，避免 live 和 replay 分叉。
+- `OnlineProtocolManifest.json` / `scripts/generate-unity-protocol-manifest.mjs`：manifest 记录 `gameEventTypes` 与 Week 9 contract，并由 `npm run validate:unity-websocket` 校验。
+
 ### Week 10 — AI Director v1
 
 交付：
@@ -179,6 +197,14 @@ Week 8 留存范围：
 - 多局 player memory。
 - 结构化赛后复盘。
 - AI 成本、延迟、fallback 指标。
+
+实现状态：
+
+- `server/aiDirector.ts`：Director 模板白名单扩展到 15 个，新增 memory / resource / line-control / finisher / target-discipline 等 Week 10 遭遇；所有模板继续引用白名单 persona、battlefield modifier 和 objective。
+- `AIPlayerMemory` / `createPlayerMemoryUpdate()`：从 replay command entries 与 public counters 派生多局玩家倾向，跨 run 合并早交饰品率、集火切换率、反应 pass 偏好、偏好目标角色、压力画像和 notes。
+- `AIPostGameSummary.structuredReview`：结构化输出 result counters、key moments 和复盘 sections，仍只基于 replay 事实，不泄露隐藏手牌或完整行动树。
+- `AIObservabilityMetrics` / `summarizeAIMetrics()`：记录 Director trace 数、Bot decision trace 数、估算 AI 成本、latency total/average/max 和 Director / Bot fallback 次数。
+- `server/aiDirectorV1Playtest.ts` / `scripts/playtest-ai-director-v1.mjs` / `npm run playtest:ai-director-v1`：固定运行 3 场 Director v1 run，跨局传递 memory，输出 replay JSON、Markdown 和 `docs/playtest/week-10-ai-director-v1-report.md`。
 
 ### Week 11 — Mobile-first polish
 
@@ -190,6 +216,17 @@ Week 8 留存范围：
 - 目标吸附。
 - 反应窗口移动端 UI。
 - 音效 / 震动。
+
+实现状态：
+
+- `SafeAreaFitter`：把 match canvas 内容约束到 `Screen.safeArea`，横屏时保留 16:9 逻辑画幅，避开刘海、Dynamic Island 和 Home Indicator。
+- `TouchTargetExpander`：为按钮、手牌等交互元素保证最小 64x64 Unity UI 命中区域，覆盖移动端 48pt 触控目标要求。
+- `CardLongPressPreview`：手牌长按 0.34s 弹出大卡预览，拖拽、移出或抬手自动收起。
+- `TargetSnapController` / `CardDragController`：拖拽期间根据可选目标锚点做半径吸附，释放时通过现有 `TargetSelectionController.SelectTarget()` 提交，不在 Unity 侧推导规则结果。
+- `ReactionWindowMobilePrompt`：将 `resolveReaction pass` 和反应饰品操作做成移动端 prompt，并复用合法 command 反查与提交链路。
+- `MobileFeedbackController`：为拖拽、吸附、拒绝和提交提供音效 hook；移动平台 rejection / snap 使用 `Handheld.Vibrate()` 触觉反馈。
+- `MatchVisualPrototypeBootstrap`：本地 prototype 挂载 safe area、触控目标、长按预览和反馈组件，便于无服务器检查手感层。
+- `npm run validate:unity-websocket`：扩展静态校验 Week 11 移动端脚本、Unity `.meta` guid 和关键集成标记。
 
 ### Week 12 — Demo package
 

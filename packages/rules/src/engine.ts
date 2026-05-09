@@ -1,6 +1,6 @@
 import { CARDS, HERO_DEFS, createInitialSetup, isAdjacentZone } from "../../data/src";
 import type { CardDef, HeroRole, Side, ZoneId } from "../../data/src";
-import type { ActivationState, ApplyResult, Command, GameEvent, GameState, HeroSeed, HeroState, PlayerState, ReactionWindow, ReactionWindowKind } from "./types";
+import type { ActivationState, ApplyResult, Command, GameEvent, GameEventPayloadByType, GameEventType, GameState, HeroSeed, HeroState, PlayerState, ReactionWindow, ReactionWindowKind } from "./types";
 
 const CARD_BY_ID = Object.fromEntries(CARDS.map((card) => [card.id, card]));
 
@@ -150,10 +150,15 @@ function spendFocus(state: GameState, side: Side, amount: number) {
 
 function drawCards(state: GameState, side: Side, amount: number) {
   const player = getPlayer(state, side);
+  let drawn = 0;
   for (let i = 0; i < amount; i += 1) {
     const next = player.deck.shift();
     if (!next) break;
     player.hand.push(next);
+    drawn += 1;
+  }
+  if (drawn > 0) {
+    record(state, "card-drawn", { playerId: side, amount: drawn, handCount: player.hand.length, deckCount: player.deck.length });
   }
 }
 
@@ -222,20 +227,48 @@ function openReactionWindow(
   };
   state.pendingReaction = window;
   state.phase = "reaction";
+  record(state, "reaction-opened", {
+    windowId: window.id,
+    kind,
+    sourceSide,
+    sourceHeroId,
+    sourceCardId,
+    targetIds,
+    toZone: opts.toZone,
+    revealedCardId: opts.revealedCardId,
+  });
   return window;
 }
 
 function closeReactionWindow(state: GameState) {
   if (state.pendingReaction) {
     state.pendingReaction.closed = true;
+    record(state, "reaction-resolved", { windowId: state.pendingReaction.id, interrupted: state.pendingReaction.interrupted });
   }
   state.pendingReaction = null;
   state.phase = "main";
 }
 
-function record(state: GameState, type: string, payload: Record<string, unknown>) {
-  const event: GameEvent = { type, payload };
+function record<Type extends GameEventType>(state: GameState, type: Type, payload: GameEventPayloadByType[Type]) {
+  const event = { type, payload } as Extract<GameEvent, { type: Type }>;
   state.log.push(event);
+  return event;
+}
+
+function takeTrailingKnockoutForTarget(state: GameState, targetId: string) {
+  const last = state.log[state.log.length - 1];
+  if (last?.type !== "knockout" || last.payload.targetId !== targetId) {
+    return null;
+  }
+  return state.log.pop() as Extract<GameEvent, { type: "knockout" }>;
+}
+
+function recordDamageEvent<Type extends "damage" | "end-round-damage">(state: GameState, type: Type, payload: GameEventPayloadByType[Type]) {
+  const trailingKnockout = takeTrailingKnockoutForTarget(state, payload.targetId);
+  const event = record(state, type, payload);
+  if (trailingKnockout) {
+    state.log.push(trailingKnockout);
+  }
   return event;
 }
 
@@ -647,13 +680,13 @@ function applyCardEffect(state: GameState, card: CardDef, sourceHero: HeroState,
   switch (card.id) {
     case "007-rogue-backstab": {
       const dealt = applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 2, consumeMeleeBonus(sourceHero, targets[0].id, card), damageReduction);
-      events.push(record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 }));
+      events.push(recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 }));
       break;
     }
     case "008-rogue-wound-poison": {
       const dealt = applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 1, consumeMeleeBonus(sourceHero, targets[0].id, card), damageReduction);
       setHealReduction(state, targets[0].id, 2);
-      events.push(record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 1 }));
+      events.push(recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 1 }));
       break;
     }
     case "010-rogue-kidney-shot":
@@ -683,13 +716,13 @@ function applyCardEffect(state: GameState, card: CardDef, sourceHero: HeroState,
     case "036-warlock-chaos-bolt": {
       const damage = card.id === "012-rogue-shadow-dance" || card.id === "030-warrior-recklessness" ? 3 : 5;
       const dealt = applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, damage, consumeMeleeBonus(sourceHero, targets[0].id, card));
-      events.push(record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || damage }));
+      events.push(recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || damage }));
       break;
     }
     case "013-mage-frostbolt": {
       const dealt = applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 2);
       applySoftControl(state, sourceHero.id, targets[0].id, { noMove: true });
-      events.push(record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 }));
+      events.push(recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 }));
       break;
     }
     case "016-mage-frost-nova":
@@ -734,44 +767,51 @@ function applyCardEffect(state: GameState, card: CardDef, sourceHero: HeroState,
       events.push(record(state, "reaction-defense", { cardId: card.id, amount: reduction }));
       break;
     }
-    case "024-priest-shadow-word-death":
-      {
-        const damage = targets[0].hp <= 5 ? 3 : 2;
-      applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, damage, 0, damageReduction);
-      events.push(record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: damage }));
-      }
+    case "024-priest-shadow-word-death": {
+      const damage = targets[0].hp <= 5 ? 3 : 2;
+      const dealt = applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, damage, 0, damageReduction);
+      events.push(recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || damage }));
       break;
-    case "025-warrior-heroic-strike":
-      applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 2, consumeMeleeBonus(sourceHero, targets[0].id, card), damageReduction);
-      events.push(record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: 2 }));
+    }
+    case "025-warrior-heroic-strike": {
+      const dealt = applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 2, consumeMeleeBonus(sourceHero, targets[0].id, card), damageReduction);
+      events.push(recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 }));
       break;
-    case "026-warrior-mortal-strike":
-      applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 3, consumeMeleeBonus(sourceHero, targets[0].id, card), damageReduction);
+    }
+    case "026-warrior-mortal-strike": {
+      const dealt = applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 3, consumeMeleeBonus(sourceHero, targets[0].id, card), damageReduction);
       setHealReduction(state, targets[0].id, 2);
-      events.push(record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: 3 }));
+      events.push(recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 3 }));
       break;
+    }
     case "028-warrior-charge":
       sourceHero.zone = targets[0].zone;
-      applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 1);
       events.push(record(state, "move", { cardId: card.id, heroId: sourceHero.id, toZone: sourceHero.zone }));
+      {
+        const dealt = applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 1);
+        events.push(recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 1 }));
+      }
       break;
-    case "031-warlock-corruption":
-      applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 1, 0, damageReduction);
+    case "031-warlock-corruption": {
+      const dealt = applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 1, 0, damageReduction);
       state.endOfRoundEffects.push({ type: "damage", sourceSide, sourceHeroId: sourceHero.id, sourceCardId: card.id, targetId: targets[0].id, amount: 1 });
-      events.push(record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: 1 }));
+      events.push(recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 1 }));
       break;
+    }
     case "032-warlock-drain-life": {
       const dealt = applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 2);
       const healed = applyHealing(state, sourceHero.id, 2);
-      events.push(record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 }));
+      events.push(recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 }));
       events.push(record(state, "heal", { cardId: card.id, targetId: sourceHero.id, amount: healed }));
       break;
     }
-    case "035-warlock-curse-of-agony":
-      applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 2);
+    case "035-warlock-curse-of-agony": {
+      const dealt = applyDamage(state, sourceSide, card.id, sourceHero.id, targets[0].id, 2);
       setHealReduction(state, targets[0].id, 1);
+      events.push(recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 }));
       events.push(record(state, "debuff", { cardId: card.id, targetId: targets[0].id, effect: "damage-heal-reduction", damage: 2, amount: 1 }));
       break;
+    }
     case "037-druid-rejuvenation": {
       const bonus = targets[0].zone === "left" || targets[0].zone === "right" ? 1 : 0;
       const healed = applyHealing(state, targets[0].id, 2 + bonus);
@@ -840,19 +880,19 @@ function resolvePendingWindowEffect(state: GameState, window: ReactionWindow) {
   if (card.effectKey === "burst-damage") {
     const damage = card.id === "018-mage-pyroblast" || card.id === "036-warlock-chaos-bolt" ? 5 : 3;
     const dealt = applyDamage(state, sourceHero.side, card.id, sourceHero.id, targets[0].id, damage, window.damageBonus + consumeMeleeBonus(sourceHero, targets[0].id, card), window.damageReduction);
-    record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || damage, reactionDamageReduction: window.damageReduction });
+    recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || damage, reactionDamageReduction: window.damageReduction });
     return;
   }
   if (card.effectKey === "spell-damage-soft-control") {
     const dealt = applyDamage(state, sourceHero.side, card.id, sourceHero.id, targets[0].id, 2, window.damageBonus, window.damageReduction);
     applySoftControl(state, sourceHero.id, targets[0].id, { noMove: true });
-    record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 });
+    recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 });
     return;
   }
   if (card.effectKey === "spell-damage-heal") {
     const dealt = applyDamage(state, sourceHero.side, card.id, sourceHero.id, targets[0].id, 2, window.damageBonus, window.damageReduction);
     const healed = applyHealing(state, sourceHero.id, 2);
-    record(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 });
+    recordDamageEvent(state, "damage", { cardId: card.id, targetId: targets[0].id, amount: dealt || 2 });
     record(state, "heal", { cardId: card.id, targetId: sourceHero.id, amount: healed });
     return;
   }
@@ -895,7 +935,7 @@ function resolveEndOfRoundEffects(state: GameState) {
   for (const effect of effects) {
     if (effect.type === "damage" && getHero(state, effect.targetId).alive) {
       const dealt = applyDamage(state, effect.sourceSide, effect.sourceCardId, effect.sourceHeroId, effect.targetId, effect.amount);
-      record(state, "end-round-damage", { cardId: effect.sourceCardId, targetId: effect.targetId, amount: dealt || effect.amount });
+      recordDamageEvent(state, "end-round-damage", { cardId: effect.sourceCardId, targetId: effect.targetId, amount: dealt || effect.amount });
       if (state.phase === "finished") return;
     }
   }
@@ -1298,10 +1338,12 @@ function handleStartTurn(state: GameState, cmd: Extract<Command, { type: "startT
   }
   state.round += 1;
   state.startingPlayer = nextStart;
-  beginRound(state, true);
+  beginRound(state, false);
   state.currentPlayer = state.startingPlayer;
   state.phase = "main";
   record(state, "round-start", { round: state.round });
+  drawCards(state, "blue", 2);
+  drawCards(state, "red", 2);
 }
 
 function handleSelectFocusTarget(state: GameState, cmd: Extract<Command, { type: "selectFocusTarget" }>) {

@@ -35,20 +35,25 @@ npm run smoke:online
 npm run playtest:command-parity
 npm run playtest:ai-bot
 npm run playtest:ai-director
+npm run playtest:ai-director-v1
 npm run playtest:ai-vertical-slice
 npm run validate:unity-websocket
+npm run generate:unity-protocol-manifest -- --check
 ```
 
 当前验证基线：
 
-- `npm test`：13 files / 40 tests passed。
+- `npm test`：17 files / 62 tests passed。
 - `npm run typecheck`：`tsc --noEmit` 通过。
 - `npm run build`：Vite production build 通过。
 - `npm run smoke:online`：启动真实房间服务并覆盖 `/healthz`、`/debug/rooms` 脱敏、WebSocket create/join/submit/disconnect/reconnect/stale connection。
-- `npm run playtest:ai-bot`：运行非 LLM BotPolicy 的 AI vs AI 固定步数 smoke，并在 `playtest-results/ai-bot/` 输出 JSON trace、Director v0 trace 与 Markdown 摘要。
-- `npm run playtest:ai-director`：运行 Director v0 重点 smoke，并在 `playtest-results/ai-director/` 输出 encounter、intent hints、模板短台词、赛后复盘与可 replay trace。
+- `npm run playtest:ai-bot`：运行非 LLM BotPolicy 的 AI vs AI 固定步数 smoke，并在 `playtest-results/ai-bot/` 输出 JSON trace、Director v1 trace 与 Markdown 摘要。
+- `npm run playtest:ai-director`：运行 Director 重点 smoke，并在 `playtest-results/ai-director/` 输出 encounter、intent hints、模板短台词、结构化赛后复盘、player memory 与可 replay trace。
+  - 最新 AI Director v0 playtest：`playtest-results/ai-director/ai-bot-playtest.md`，stop reason `maxSteps`，final round 4，80 commands，8 response windows，1 interrupt；Turn 3 recorded an interrupt。
+- `npm run playtest:ai-director-v1`：运行 Week 10 三场 Director v1 run，并在 `playtest-results/ai-director-v1/` 输出多局 memory、结构化复盘、AI cost / latency / fallback metrics，同时更新 `docs/playtest/week-10-ai-director-v1-report.md`。
 - `npm run playtest:ai-vertical-slice`：运行 Week 6 三场 AI-native vertical slice，并在 `playtest-results/ai-vertical-slice/` 输出每场 replay / AI 复盘，同时更新 `docs/playtest/week-6-vertical-slice-report.md`。
-- `npm run validate:unity-websocket`：静态校验 Week 7 Unity WebSocket DTO、transport、room client、snapshot store 与当前在线协议消息名对齐。
+- `npm run validate:unity-websocket`：静态校验 Week 7-11 Unity WebSocket DTO、transport、room client、snapshot store、HUD / target selection / reject feedback / typed event mapping / replay queue、移动端触控手感组件与当前协议对齐。
+- `npm run generate:unity-protocol-manifest -- --check`：校验 Unity 协议 manifest 与 TS protocol / rules command / GameEvent type 源保持一致。
 
 ## 本地热座
 
@@ -167,6 +172,7 @@ AI baseline playtest：
 ```bash
 npm run playtest:ai-bot
 npm run playtest:ai-director
+npm run playtest:ai-director-v1
 ```
 
 `playtest:ai-bot` 默认配置为蓝方 `aggressive`、红方 `sustain`，最多执行 80 个合法 command。可选环境变量：
@@ -176,12 +182,12 @@ npm run playtest:ai-director
 
 BotPolicy 不接实时 LLM，只从 `PlayerView.legalCommands` 中选择动作；每个候选动作会生成稳定 `actionId`，每次选择会输出 AI decision trace。
 
-AI Director v0 playtest：
+AI Director playtest：
 
-- `server/aiDirector.ts` 提供 3 个白名单 persona、5 个 encounter templates、battlefield modifiers 和 objectives。
+- `server/aiDirector.ts` 提供 3 个白名单 persona、15 个 encounter templates、battlefield modifiers 和 objectives。
 - 每局开局输出 `AIEncounterSpec` 与模板短台词。
 - 每个新 round 输出公开 `AIIntentHint`，只包含威胁类型、目标倾向和模糊置信度，不展示隐藏手牌或完整行动树。
-- 对局结束后基于 replay counters / command entries 生成 `AIPostGameSummary`。
+- 对局结束后基于 replay counters / command entries 生成 `AIPostGameSummary`，包含结构化复盘、player memory 和 AI cost / latency / fallback metrics。
 - Director 输出通过 `AIDirectorTrace` 写入 AI playtest JSON 和 room replay，便于审计与重放。
 
 `playtest:ai-director` 可选环境变量：
@@ -189,6 +195,23 @@ AI Director v0 playtest：
 - `AI_DIRECTOR_MAX_STEPS=120`：调整固定步数上限。
 - `AI_DIRECTOR_RESULT_DIR=path/to/output`：调整 JSON/Markdown 输出目录。
 - `AI_DIRECTOR_ENCOUNTER_TEMPLATE_ID=trickster-reaction-trap`：选择白名单 encounter template；未知模板会 fallback 到默认白名单模板并记录 trace。
+
+Week 10 Director v1 multi-match playtest：
+
+- 固定运行 3 场 run，跨局传递 `AIPlayerMemory`。
+- 验证 15 个 encounter templates 可用，并覆盖 memory rematch / feint 模板。
+- 汇总每局结构化复盘 section 数、memory match count、AI cost / latency / fallback metrics。
+- 汇总报告写入 `docs/playtest/week-10-ai-director-v1-report.md`。
+
+```bash
+npm run playtest:ai-director-v1
+```
+
+可选环境变量：
+
+- `AI_DIRECTOR_V1_MAX_STEPS=120`：调整每场固定步数上限。
+- `AI_DIRECTOR_V1_RESULT_DIR=path/to/output`：调整 JSON/Markdown 输出目录。
+- `AI_DIRECTOR_V1_REPORT_PATH=docs/playtest/custom-report.md`：调整 repo 内汇总报告路径。
 
 Week 6 vertical slice playtest：
 
@@ -230,13 +253,46 @@ npm run validate:unity-prototype
 
 ## Unity WebSocket Foundation
 
-Week 7 增加了 Unity 连接房间服务的基础层，仍由 TypeScript server / rules 权威结算：
+Week 7 增加了 Unity 连接房间服务的基础层，Week 8 把它接到 match-facing HUD / 输入状态，仍由 TypeScript server / rules 权威结算：
 
 - `Scripts/Protocol/ClientMessageModels.cs` / `ServerEventModels.cs`：当前在线协议的临时 DTO，使用 Unity 官方 Newtonsoft JSON 包承载动态 `PlayerView.state` 和 `legalCommands`。
 - `Scripts/Protocol/GameProtocol.cs`：消息名常量、序列化、server message envelope 解析和合法 command JSON 克隆。
 - `Scripts/Protocol/WebSocketTransport.cs`：基于 `ClientWebSocket` 的 Unity transport，接收消息在 `Update()` 中派发回主线程。
 - `Scripts/Protocol/UnityRoomClient.cs`：创建 PvP 房间、创建 AI encounter、加入、重连、提交已有合法 command、导出 replay 的薄客户端。
 - `Scripts/State/ClientSnapshotStore.cs`：保存 `roomCode`、`side`、`seatToken`、`PlayerView`、AI encounter debug state 和最近 server error。
+- `Scripts/Input/InputPermissionGuard.cs`：基于 session、`legalCommands` 和 `VisualCommandQueue.InputLocked` 判断是否允许提交输入。
+- `Scripts/Input/TargetSelectionController.cs`：从现有合法命令中反查卡牌/目标选择，最终提交完整 command，不在 Unity 侧生成规则结果。
+- `Scripts/UI/MatchHud.cs` / `ToastPromptView.cs`：显示连接/房间/回合/合法命令状态，并把 server reject 显示为 toast。
+- `Scripts/Input/CardDragController.cs`：新增 reject/rebound 信号，让被拒绝拖拽明确回弹。
+- `Scripts/Commands/VisualCommandFactory.cs`：把 live `PlayerView.state.log` 和 replay export command events 映射为正式 `VisualCommandQueue` 命令，再执行 snapshot reconcile。
+- `Generated/OnlineProtocolManifest.json` + `scripts/generate-unity-protocol-manifest.mjs`：记录 TS 协议源、command type 和 GameEvent type 的生成清单，校验协议没有漂移。
+
+## Unity VisualCommandQueue Formalization
+
+Week 9 把视觉队列从 placeholder event beat 推进到 typed event mapping：
+
+- `GameEvent` 在 `packages/rules/src/types.ts` 中是 discriminated union，当前事件 payload 由 `GameEventPayloadByType` 约束。
+- `card-drawn` 事件只公开 `playerId`、`amount`、`handCount`、`deckCount`，不泄露隐藏抽牌 card id。
+- `VisualCommandFactory` 将 live `PlayerView.state.log` 和 replay export command events 统一映射到同一个 `BuildGameEventCommand()`。
+- 正式命名视觉命令覆盖抽牌、出牌、伤害、死亡、回合开始，并在 live / replay 批次末尾执行 snapshot reconcile。
+
+静态校验：
+
+```bash
+npm run validate:unity-websocket
+npm run generate:unity-protocol-manifest -- --check
+```
+
+## Unity Mobile-first Polish
+
+Week 11 补齐移动端手感层，仍不改变 TS server / rules 的权威规则边界：
+
+- `Scripts/UI/SafeAreaFitter.cs`：iPhone 横屏 safe area 和 16:9 逻辑画幅。
+- `Scripts/UI/TouchTargetExpander.cs`：移动端最小触控命中区。
+- `Scripts/UI/CardLongPressPreview.cs`：手牌长按大卡预览。
+- `Scripts/Input/TargetSnapController.cs`：拖拽释放目标吸附，live 路径最终仍调用合法 `SelectTarget()` 提交；prototype 可用显式目标列表检查吸附手感。
+- `Scripts/UI/ReactionWindowMobilePrompt.cs`：移动端反应窗口 pass / trinket prompt。
+- `Scripts/Visual/MobileFeedbackController.cs`：拖拽、吸附、拒绝、提交的音效 hook 和移动端震动。
 
 静态校验：
 

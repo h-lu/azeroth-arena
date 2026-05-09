@@ -89,10 +89,63 @@ export interface EndOfRoundEffect {
   amount: number;
 }
 
-export interface GameEvent {
-  type: string;
-  payload: Record<string, unknown>;
+export interface GameEventPayloadByType {
+  "activation-end": { playerId: Side };
+  activate: { heroId: string };
+  "card-drawn": { playerId: Side; amount: number; handCount: number; deckCount: number };
+  "card-played": { heroId: string; cardId: string; targets: string[]; toZone?: ZoneId; revealedCardId?: string };
+  cleanse: { heroId?: string; cardId?: string; targetId?: string; nonWindow?: boolean };
+  "control-applied": { targetId: string; sourceId: string; control: "hard" | "soft"; short?: boolean };
+  "control-downgraded": { targetId: string; sourceId: string };
+  "control-immune": { targetId: string; sourceId: string; control?: "soft" };
+  control: { cardId: string; targetIds: string[]; kind: "soft" };
+  "cooldown-start": CooldownState;
+  damage: { cardId: string; targetId: string; amount: number; reactionDamageReduction?: number };
+  debuff: { cardId: string; targetId: string; effect: "damage-heal-reduction"; damage: number; amount: number };
+  discard: { playerId: Side; cardIds: string[]; handSize: number };
+  "discard-auto": { playerId: Side; cardIds: string[]; handSize: number };
+  dispel: { cardId: string; targetId: string };
+  "end-round-damage": { cardId: string; targetId: string; amount: number };
+  "fake-cast": { cardId: string; revealedCardId?: string };
+  "fake-cast-success": { cardId: string; revealedCardId?: string; by: string; drew: number };
+  focus: { cardId: string; targetId: string };
+  "focus-selected": { playerId: Side; targetId: string; round: number };
+  "hard-control-consumed": { heroId: string };
+  heal: { cardId: string; targetId: string; amount: number };
+  "inline-defense": { cardId: string; heroId: string; targetId: string; sourceCardId: string; amount: number };
+  interrupted: { cardId: string; by: string };
+  knockout: { targetId: string; winner: Side };
+  move: { heroId: string; toZone: ZoneId; cardId?: string };
+  "reaction-defense": { cardId: string; amount: number };
+  "reaction-opened": {
+    windowId: string;
+    kind: ReactionWindowKind;
+    sourceSide: Side;
+    sourceHeroId: string;
+    sourceCardId: string;
+    targetIds: string[];
+    toZone?: ZoneId;
+    revealedCardId?: string;
+  };
+  "reaction-pass": { playerId: Side; heroId: string; windowId: string };
+  "reaction-play": { heroId: string; cardId: string; windowId: string };
+  "reaction-resolved": { windowId: string; interrupted: boolean };
+  "round-end": { round: number };
+  "round-start": { round: number };
+  shield: { cardId: string; targetId?: string; targetIds?: string[]; amount: number };
+  "turn-pass": { from: Side; to: Side };
+  trinket: { heroId: string; windowId?: string; nonWindow?: boolean };
+  unimplemented: { cardId: string };
 }
+
+export type GameEventType = keyof GameEventPayloadByType;
+
+export type GameEvent = {
+  [Type in GameEventType]: {
+    type: Type;
+    payload: GameEventPayloadByType[Type];
+  };
+}[GameEventType];
 
 export interface GameState {
   round: number;

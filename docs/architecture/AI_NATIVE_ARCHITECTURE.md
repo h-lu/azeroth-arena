@@ -25,6 +25,7 @@ azeroth-arena/
 
 ```text
 Unity input
+  -> TargetSelectionController filters PlayerView.legalCommands
   -> ClientMessage.submitCommand
   -> server validates seatToken / side / expectedVersion
   -> rules.applyCommand
@@ -75,6 +76,7 @@ RoomOrchestrator detects AI side is active
 - AI actor 调度。
 - AI trace 落盘。
 - server-side timers / fallback。
+- 拒绝非法或过期 command，并通过 `roomError` 让 Unity 执行回弹 / toast。
 
 ### AI Player
 
@@ -114,6 +116,8 @@ RoomOrchestrator detects AI side is active
 - 拖拽、目标选择、触控。
 - `VisualCommandQueue`。
 - AI 对手头像、情绪、思考、短台词、IntentBar。
+- 从 `PlayerView.legalCommands` 中选择完整 command 并提交，不在客户端拼规则结果。
+- 通过 `PlayerView.state.log` 增量驱动视觉队列并在动画后 reconcile snapshot。
 
 不负责：
 
@@ -152,22 +156,23 @@ AIIntentMessage
 
 ## 强类型事件
 
-当前 MVP 的 `GameEvent` 是 loose payload。Unity 动画、AI replay 和 schema codegen 需要升级为 discriminated union：
+Week 9 已将 rules 层 `GameEvent` 升级为 discriminated union。`packages/rules/src/types.ts` 中的 `GameEventPayloadByType` 是当前 source of truth，Unity、replay 和后续 schema codegen 都应从这里派生事件契约。
 
 ```ts
 type GameEvent =
-  | { type: "turn.started"; payload: TurnStartedPayload }
-  | { type: "card.drawn"; payload: CardDrawnPayload }
-  | { type: "card.played"; payload: CardPlayedPayload }
-  | { type: "hero.moved"; payload: HeroMovedPayload }
-  | { type: "damage.applied"; payload: DamageAppliedPayload }
-  | { type: "heal.applied"; payload: HealAppliedPayload }
-  | { type: "shield.gained"; payload: ShieldGainedPayload }
-  | { type: "reaction.opened"; payload: ReactionOpenedPayload }
-  | { type: "reaction.resolved"; payload: ReactionResolvedPayload }
-  | { type: "entity.defeated"; payload: EntityDefeatedPayload }
-  | { type: "game.finished"; payload: GameFinishedPayload };
+  | { type: "round-start"; payload: RoundStartedPayload }
+  | { type: "card-drawn"; payload: CardDrawnPayload }
+  | { type: "card-played"; payload: CardPlayedPayload }
+  | { type: "move"; payload: HeroMovedPayload }
+  | { type: "damage"; payload: DamagePayload }
+  | { type: "heal"; payload: HealPayload }
+  | { type: "shield"; payload: ShieldPayload }
+  | { type: "reaction-opened"; payload: ReactionOpenedPayload }
+  | { type: "reaction-resolved"; payload: ReactionResolvedPayload }
+  | { type: "knockout"; payload: EntityDefeatedPayload };
 ```
+
+`card-drawn` intentionally exposes only `playerId`, `amount`, `handCount`, and `deckCount`; it does not reveal hidden card ids. The viewer-specific `PlayerView` snapshot remains responsible for showing the local player's actual hand after `SnapshotReconcileVisualCommand`.
 
 ## 回放与可观测性
 
@@ -190,7 +195,7 @@ AI-native 必须记录：
 
 AI trace 默认不发给普通客户端，只进入 debug/replay/admin。
 
-Week 3 Director v0 已把 encounter、intent hint、模板短台词和赛后复盘作为 `AIDirectorTrace` 写入 AI playtest JSON，并可通过 room replay 中的 `kind: "director"` entry 审计。普通在线协议仍不主动把完整 Director trace 推给玩家客户端。
+Week 10 Director v1 已把 encounter、intent hint、模板短台词、结构化赛后复盘、player memory 和 AI cost / latency / fallback metrics 作为 `AIDirectorTrace` 写入 AI playtest JSON，并可通过 room replay 中的 `kind: "director"` entry 审计。普通在线协议仍只公开脱敏 trace preview，不主动把完整 Director trace 推给玩家客户端。
 
 ## 安全边界
 

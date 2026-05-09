@@ -3,6 +3,8 @@ using AzerothArena.Cards;
 using AzerothArena.Commands;
 using AzerothArena.Hand;
 using AzerothArena.Input;
+using AzerothArena.UI;
+using AzerothArena.Visual;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -30,10 +32,14 @@ namespace AzerothArena
             EnsureEventSystem();
 
             var canvas = CreateCanvas();
+            canvas.gameObject.AddComponent<SafeAreaFitter>();
+            var targetSnap = canvas.gameObject.AddComponent<TargetSnapController>();
+            targetSnap.SetPrototypeSelectableTargets("red-warrior", "red-mage", "red-druid");
+            var feedback = canvas.gameObject.AddComponent<MobileFeedbackController>();
             var board = CreatePanel("Board", canvas.transform, new Vector2(0f, 56f), new Vector2(1180f, 540f), new Color(0.08f, 0.11f, 0.14f, 0.95f));
-            CreateLane("Left", board.transform, -310f);
-            CreateLane("Center", board.transform, 0f);
-            CreateLane("Right", board.transform, 310f);
+            targetSnap.RegisterTargetAnchor("red-warrior", CreateLane("Left", board.transform, -310f));
+            targetSnap.RegisterTargetAnchor("red-mage", CreateLane("Center", board.transform, 0f));
+            targetSnap.RegisterTargetAnchor("red-druid", CreateLane("Right", board.transform, 310f));
 
             var aiPanel = CreatePanel("AIOpponentView", canvas.transform, new Vector2(0f, 332f), new Vector2(540f, 132f), new Color(0.11f, 0.14f, 0.18f, 0.96f));
             var aiView = aiPanel.gameObject.AddComponent<AIOpponentView>();
@@ -41,9 +47,11 @@ namespace AzerothArena
 
             var handRoot = CreatePanel("HandLayoutController", canvas.transform, new Vector2(0f, -304f), new Vector2(980f, 210f), new Color(0.04f, 0.05f, 0.07f, 0.7f));
             var handLayout = handRoot.gameObject.AddComponent<HandLayoutController>();
+            var preview = CreateCardPreview(canvas.transform);
             for (var i = 0; i < DemoCardNames.Length; i++)
             {
-                var card = BuildCard(handRoot.transform, i);
+                var card = BuildCard(handRoot.transform, i, preview);
+                card.ReboundRequested.AddListener(_ => feedback.PlayReject());
                 handLayout.Register(card);
             }
 
@@ -76,19 +84,22 @@ namespace AzerothArena
             return rect;
         }
 
-        private static void CreateLane(string label, Transform parent, float x)
+        private static RectTransform CreateLane(string label, Transform parent, float x)
         {
             var lane = CreatePanel(label + " Lane", parent, new Vector2(x, 0f), new Vector2(280f, 430f), new Color(0.13f, 0.17f, 0.2f, 0.82f));
             var text = CreateText(label, lane.transform, new Vector2(0f, 174f), 22, TextAnchor.MiddleCenter);
             text.color = new Color(0.82f, 0.89f, 0.94f);
             CreatePanel("Pillar", lane.transform, new Vector2(0f, 16f), new Vector2(82f, 168f), new Color(0.32f, 0.35f, 0.38f, 0.9f));
+            return lane;
         }
 
-        private static CardDragController BuildCard(Transform parent, int index)
+        private static CardDragController BuildCard(Transform parent, int index, CardPreviewBindings preview)
         {
             var rect = CreatePanel("CardView " + (index + 1), parent, Vector2.zero, new Vector2(112f, 160f), new Color(0.16f, 0.19f, 0.24f, 1f));
             var canvasGroup = rect.gameObject.AddComponent<CanvasGroup>();
+            rect.gameObject.AddComponent<TouchTargetExpander>();
             var view = rect.gameObject.AddComponent<CardView>();
+            var longPress = rect.gameObject.AddComponent<CardLongPressPreview>();
             var drag = rect.gameObject.AddComponent<CardDragController>();
 
             var glow = CreatePanel("PlayableGlow", rect.transform, Vector2.zero, new Vector2(124f, 172f), new Color(1f, 0.82f, 0.28f, 0.22f));
@@ -99,8 +110,21 @@ namespace AzerothArena
 
             view.Configure(rect, canvasGroup, rect.GetComponent<Image>(), glow.GetComponent<Image>(), cost, title, body);
             view.Bind("demo-card-" + index, DemoCardNames[index], index + 1, "Drag to target", true);
+            longPress.ConfigurePreview(preview.Root, preview.TitleText, preview.BodyText, preview.Group);
             drag.ReleasedAboveThreshold.AddListener(card => card.CardView?.SetHoverAmount(1f));
             return drag;
+        }
+
+        private static CardPreviewBindings CreateCardPreview(Transform parent)
+        {
+            var preview = CreatePanel("HoverCardPreview", parent, new Vector2(0f, -80f), new Vector2(290f, 390f), new Color(0.12f, 0.15f, 0.19f, 0.98f));
+            var group = preview.gameObject.AddComponent<CanvasGroup>();
+            var title = CreateText("Card", preview.transform, new Vector2(0f, 120f), 24, TextAnchor.MiddleCenter);
+            title.rectTransform.sizeDelta = new Vector2(250f, 46f);
+            var body = CreateText("Rules", preview.transform, new Vector2(0f, -10f), 18, TextAnchor.MiddleCenter);
+            body.rectTransform.sizeDelta = new Vector2(250f, 190f);
+            preview.gameObject.SetActive(false);
+            return new CardPreviewBindings(preview, group, title, body);
         }
 
         private static void BuildAIPanel(RectTransform panel, AIOpponentView view)
@@ -154,6 +178,22 @@ namespace AzerothArena
             }
 
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+        }
+
+        private readonly struct CardPreviewBindings
+        {
+            public CardPreviewBindings(RectTransform root, CanvasGroup group, Text titleText, Text bodyText)
+            {
+                Root = root;
+                Group = group;
+                TitleText = titleText;
+                BodyText = bodyText;
+            }
+
+            public RectTransform Root { get; }
+            public CanvasGroup Group { get; }
+            public Text TitleText { get; }
+            public Text BodyText { get; }
         }
     }
 }

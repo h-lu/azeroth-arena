@@ -11,6 +11,7 @@
     "validate:cards": "node --import tsx tools/validate-card-schema.ts",
     "validate:unity-prototype": "node scripts/validate-unity-prototype.mjs",
     "validate:unity-websocket": "node scripts/validate-unity-websocket.mjs",
+    "generate:unity-protocol-manifest": "node scripts/generate-unity-protocol-manifest.mjs",
     "build": "tsc --noEmit && vite build",
     "dev": "vite --host 0.0.0.0",
     "dev:client": "vite --host 0.0.0.0",
@@ -20,6 +21,7 @@
     "playtest:command-parity": "node --import tsx scripts/playtest-command-parity.mjs",
     "playtest:ai-bot": "node --import tsx scripts/playtest-ai-bot.mjs",
     "playtest:ai-director": "node --import tsx scripts/playtest-ai-director.mjs",
+    "playtest:ai-director-v1": "node --import tsx scripts/playtest-ai-director-v1.mjs",
     "playtest:ai-vertical-slice": "node --import tsx scripts/playtest-ai-vertical-slice.mjs",
     "smoke:online": "node scripts/online-smoke.mjs"
   },

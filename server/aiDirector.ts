@@ -7,7 +7,9 @@ import type {
   AIEncounterSpec,
   AIEnemyStyle,
   AIIntentHint,
+  AIObservabilityMetrics,
   AIPersona,
+  AIPlayerMemory,
   AIPostGameSummary,
   RoomPlaytestSummary,
   RoomReplayEntry,
@@ -59,6 +61,8 @@ export interface DirectorIntentResult {
 export interface DirectorSummaryResult {
   summary: AIPostGameSummary;
   trace: AIDirectorTrace;
+  memoryTrace: AIDirectorTrace;
+  metricsTrace: AIDirectorTrace;
 }
 
 export interface DirectorDialogueResult {
@@ -128,6 +132,31 @@ export const BATTLEFIELD_MODIFIERS = [
     name: "Healer Mana Race",
     publicText: "The AI treats repeated recovery as a long resource race, not a reset.",
   },
+  {
+    id: "line-of-sight-tax",
+    name: "Line-of-Sight Tax",
+    publicText: "The AI makes exposed casts and cross-lane movement more costly to ignore.",
+  },
+  {
+    id: "finisher-watch",
+    name: "Finisher Watch",
+    publicText: "The AI tracks low-health enemies and hints when a finishing turn is forming.",
+  },
+  {
+    id: "tempo-scramble",
+    name: "Tempo Scramble",
+    publicText: "The AI varies pressure lanes to test whether the player can recover turn order.",
+  },
+  {
+    id: "memory-pressure",
+    name: "Memory Pressure",
+    publicText: "The AI uses previous public replay tendencies to choose a clearer next challenge.",
+  },
+  {
+    id: "resource-audit",
+    name: "Resource Audit",
+    publicText: "The AI calls out repeated reaction, pass, and trinket patterns in the review.",
+  },
 ] satisfies BattlefieldModifierDef[];
 
 export const DIRECTOR_OBJECTIVES = [
@@ -160,6 +189,31 @@ export const DIRECTOR_OBJECTIVES = [
     id: "punish-overextension",
     name: "Punish Overextension",
     publicText: "Look for a counterattack when a damage dealer moves too far ahead of support.",
+  },
+  {
+    id: "test-target-discipline",
+    name: "Test Target Discipline",
+    publicText: "Check whether the player can hold a focus plan instead of drifting between targets.",
+  },
+  {
+    id: "punish-greedy-passes",
+    name: "Punish Greedy Passes",
+    publicText: "Pressure repeated priority passes during reaction and setup windows.",
+  },
+  {
+    id: "protect-finisher-window",
+    name: "Protect Finisher Window",
+    publicText: "Preserve resources until a low-health target can be closed out.",
+  },
+  {
+    id: "stress-healer-positioning",
+    name: "Stress Healer Positioning",
+    publicText: "Force the player to keep the healer covered while trading tempo.",
+  },
+  {
+    id: "adapt-to-player-memory",
+    name: "Adapt To Player Memory",
+    publicText: "Use prior public replay tendencies to choose the next encounter emphasis.",
   },
 ] satisfies ObjectiveDef[];
 
@@ -243,6 +297,166 @@ export const ENCOUNTER_TEMPLATES = [
       closing: "The replay will show the square you should not have crossed.",
     },
     defaultThreatType: "interrupt",
+  },
+  {
+    id: "rival-finisher-watch",
+    name: "Rival Finisher Watch",
+    personaId: "arena-rival",
+    enemyStyle: "aggressive",
+    battlefieldModifierIds: ["finisher-watch", "center-pressure"],
+    objectiveIds: ["protect-finisher-window", "pressure-enemy-caster"],
+    openingIntent: "The rival will bank pressure until a low-health target can be finished cleanly.",
+    shortDialogue: {
+      opening: "I am not chasing damage. I am counting the finish.",
+      advantage: "That health total is now a deadline.",
+      behind: "You denied the close. I need another angle.",
+      closing: "The key turn was the one before lethal looked obvious.",
+    },
+    defaultThreatType: "burst",
+  },
+  {
+    id: "rival-target-discipline",
+    name: "Rival Target Discipline",
+    personaId: "arena-rival",
+    enemyStyle: "aggressive",
+    battlefieldModifierIds: ["tempo-scramble", "reaction-mind-games"],
+    objectiveIds: ["test-target-discipline", "force-trinket-before-burst"],
+    openingIntent: "The rival will switch tempo lanes if your focus target plan drifts.",
+    shortDialogue: {
+      opening: "Pick your target. I will punish the second guess.",
+      advantage: "You moved the mark, and I took the tempo.",
+      behind: "Fine. You held the line.",
+      closing: "Your focus swaps tell the whole story.",
+    },
+    defaultThreatType: "damage",
+  },
+  {
+    id: "rival-overextend-punish",
+    name: "Rival Overextend Punish",
+    personaId: "arena-rival",
+    enemyStyle: "aggressive",
+    battlefieldModifierIds: ["line-of-sight-tax", "center-pressure"],
+    objectiveIds: ["punish-overextension", "protect-finisher-window"],
+    openingIntent: "The rival will invite one exposed move, then turn it into a damage race.",
+    shortDialogue: {
+      opening: "Take the center if you want. Paying for it is the test.",
+      advantage: "Too far forward. Now you answer me.",
+      behind: "You stepped out, then got back behind cover. Good enough.",
+      closing: "The replay marker is the overextension, not the hit.",
+    },
+    defaultThreatType: "movement",
+  },
+  {
+    id: "mentor-reaction-audit",
+    name: "Mentor Reaction Audit",
+    personaId: "calm-mentor",
+    enemyStyle: "sustain",
+    battlefieldModifierIds: ["resource-audit", "reaction-mind-games"],
+    objectiveIds: ["punish-greedy-passes", "win-reaction-trades"],
+    openingIntent: "The mentor will create repeat reaction windows and audit whether passes are disciplined.",
+    shortDialogue: {
+      opening: "Every pass should have a reason.",
+      advantage: "That pass was not free.",
+      behind: "You saved the answer for the real threat.",
+      closing: "Your reaction log is the lesson plan.",
+    },
+    defaultThreatType: "resource",
+  },
+  {
+    id: "mentor-healer-stress",
+    name: "Mentor Healer Stress",
+    personaId: "calm-mentor",
+    enemyStyle: "sustain",
+    battlefieldModifierIds: ["healer-mana-race", "line-of-sight-tax"],
+    objectiveIds: ["stress-healer-positioning", "protect-own-healer"],
+    openingIntent: "The mentor will stress healer positioning without trying to end the match immediately.",
+    shortDialogue: {
+      opening: "Keep your healer relevant while pressure moves.",
+      advantage: "Your recovery is late because the position was late.",
+      behind: "That cover bought more than health.",
+      closing: "Look at the healer turns before reviewing damage.",
+    },
+    defaultThreatType: "heal",
+  },
+  {
+    id: "mentor-memory-rematch",
+    name: "Mentor Memory Rematch",
+    personaId: "calm-mentor",
+    enemyStyle: "sustain",
+    battlefieldModifierIds: ["memory-pressure", "resource-audit"],
+    objectiveIds: ["adapt-to-player-memory", "survive-opening-burst"],
+    openingIntent: "The mentor will turn the previous run's public tendencies into a measured rematch.",
+    shortDialogue: {
+      opening: "We will test the habit the replay exposed.",
+      advantage: "The old pattern showed up again.",
+      behind: "You changed the answer. That matters.",
+      closing: "The next run should target the habit, not the result.",
+    },
+    defaultThreatType: "defense",
+  },
+  {
+    id: "trickster-pass-punish",
+    name: "Trickster Pass Punish",
+    personaId: "control-trickster",
+    enemyStyle: "trickster",
+    battlefieldModifierIds: ["reaction-mind-games", "resource-audit"],
+    objectiveIds: ["punish-greedy-passes", "win-reaction-trades"],
+    openingIntent: "The trickster will make safe-looking passes become the setup for later pressure.",
+    shortDialogue: {
+      opening: "Pass if you like. I track the silence too.",
+      advantage: "That was the pass I needed.",
+      behind: "You answered the second threat, not the bait.",
+      closing: "The trap was written in the skipped window.",
+    },
+    defaultThreatType: "resource",
+  },
+  {
+    id: "trickster-control-loop",
+    name: "Trickster Control Loop",
+    personaId: "control-trickster",
+    enemyStyle: "control",
+    battlefieldModifierIds: ["tempo-scramble", "reaction-mind-games"],
+    objectiveIds: ["test-target-discipline", "pressure-enemy-caster"],
+    openingIntent: "The trickster will loop soft control and target pressure until your plan becomes readable.",
+    shortDialogue: {
+      opening: "Let us see which plan survives contact.",
+      advantage: "You are reacting to the loop, not breaking it.",
+      behind: "You cut the pattern before it tightened.",
+      closing: "The loop ends when focus and timing agree.",
+    },
+    defaultThreatType: "control",
+  },
+  {
+    id: "trickster-memory-feint",
+    name: "Trickster Memory Feint",
+    personaId: "control-trickster",
+    enemyStyle: "trickster",
+    battlefieldModifierIds: ["memory-pressure", "reaction-mind-games"],
+    objectiveIds: ["adapt-to-player-memory", "force-trinket-before-burst"],
+    openingIntent: "The trickster will feint against the previous run's most visible defensive habit.",
+    shortDialogue: {
+      opening: "I brought a new question for your old answer.",
+      advantage: "Same habit. Different punishment.",
+      behind: "You changed the rhythm. Irritating.",
+      closing: "Memory is useful only when the player repeats it.",
+    },
+    defaultThreatType: "resource",
+  },
+  {
+    id: "controller-line-tax",
+    name: "Controller Line Tax",
+    personaId: "control-trickster",
+    enemyStyle: "control",
+    battlefieldModifierIds: ["line-of-sight-tax", "nagrand-pillars"],
+    objectiveIds: ["stress-healer-positioning", "punish-overextension"],
+    openingIntent: "The controller will tax exposed lines and make pillar decisions visible in the replay.",
+    shortDialogue: {
+      opening: "The pillar decides who gets to cast.",
+      advantage: "That line cost you more than movement.",
+      behind: "You broke line before I could collect.",
+      closing: "Review the pathing before the spell.",
+    },
+    defaultThreatType: "movement",
   },
 ] satisfies EncounterTemplate[];
 
@@ -503,12 +717,129 @@ function sideCommandCount(entries: RoomReplayEntry[], side: Side, commandType: s
   return entries.filter((entry) => entry.side === side && entry.command?.type === commandType).length;
 }
 
+function roundRatio(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function roundCost(value: number) {
+  return Math.round(value * 1000) / 1000;
+}
+
+function targetRoleFromHeroId(heroId: string | undefined) {
+  if (!heroId) return undefined;
+  const role = heroId.split("-")[1];
+  return role || undefined;
+}
+
+function mostFrequent(values: string[]) {
+  const counts = values.reduce<Record<string, number>>((result, value) => {
+    result[value] = (result[value] ?? 0) + 1;
+    return result;
+  }, {});
+  return Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+}
+
+function memoryNoteFor(summary: RoomPlaytestSummary, reactionPassBias: number, focusTargetSwitchRate: number, earlyTrinketUseRate: number) {
+  if (earlyTrinketUseRate >= 0.5) return `Match ${summary.roomCode}: early trinket pressure was visible in the public replay.`;
+  if (reactionPassBias >= 0.6) return `Match ${summary.roomCode}: player often passed reaction windows, so future encounters can test delayed threats.`;
+  if (focusTargetSwitchRate >= 0.5) return `Match ${summary.roomCode}: focus target switches were frequent enough to test target discipline.`;
+  return `Match ${summary.roomCode}: no extreme tendency dominated; next run can use a balanced template.`;
+}
+
+function mergeRate(previous: number, next: number, previousMatchCount: number) {
+  return roundRatio((previous * previousMatchCount + next) / Math.max(1, previousMatchCount + 1));
+}
+
+export function summarizeAIMetrics(
+  directorTraces: AIDirectorTrace[] = [],
+  decisionTraces: Array<{ fallbackUsed: boolean }> = [],
+): AIObservabilityMetrics {
+  const totalMs = directorTraces.reduce((sum, trace) => sum + trace.latencyMs, 0);
+  const maxMs = directorTraces.reduce((max, trace) => Math.max(max, trace.latencyMs), 0);
+  const llmCallCount = directorTraces.filter((trace) => trace.source === "llm").length;
+  const heuristicCallCount = directorTraces.filter((trace) => trace.source === "heuristic").length;
+  const templateCallCount = directorTraces.filter((trace) => trace.source === "template").length;
+  const directorFallbackCount = directorTraces.filter((trace) => trace.fallbackUsed).length;
+  const botFallbackCount = decisionTraces.filter((trace) => trace.fallbackUsed).length;
+  return {
+    directorTraceCount: directorTraces.length,
+    decisionTraceCount: decisionTraces.length,
+    cost: {
+      estimatedUsd: roundCost(llmCallCount * 0.002),
+      llmCallCount,
+      heuristicCallCount,
+      templateCallCount,
+    },
+    latency: {
+      totalMs,
+      averageMs: directorTraces.length > 0 ? roundRatio(totalMs / directorTraces.length) : 0,
+      maxMs,
+    },
+    fallback: {
+      directorFallbackCount,
+      botFallbackCount,
+      totalFallbackCount: directorFallbackCount + botFallbackCount,
+    },
+  };
+}
+
+export function createPlayerMemoryUpdate(
+  playerId: string,
+  replay: RoomReplayEntry[],
+  summary: RoomPlaytestSummary,
+  playerSide: Side = "blue",
+  previousMemory: AIPlayerMemory | null = null,
+): AIPlayerMemory {
+  const commands = commandEntries(replay);
+  const playerCommands = commands.filter((entry) => entry.side === playerSide);
+  const focusTargets = playerCommands
+    .map((entry) => (entry.command?.type === "selectFocusTarget" ? entry.command.targetId : undefined))
+    .filter((targetId): targetId is string => !!targetId);
+  const focusSwitchCount = focusTargets.reduce((count, targetId, index) => count + (index > 0 && focusTargets[index - 1] !== targetId ? 1 : 0), 0);
+  const focusTargetSwitchRate = focusTargets.length > 1 ? roundRatio(focusSwitchCount / (focusTargets.length - 1)) : 0;
+  const reactionCommands = playerCommands.filter((entry) => entry.command?.type === "resolveReaction");
+  const reactionPasses = reactionCommands.filter((entry) => entry.command?.type === "resolveReaction" && entry.command.pass).length;
+  const reactionPassBias = reactionCommands.length > 0 ? roundRatio(reactionPasses / reactionCommands.length) : 0;
+  const earlyTrinkets = playerCommands.filter((entry) => entry.trinketUsed && entry.round <= 2).length;
+  const earlyTrinketUseRate = summary.trinketUseCount > 0 ? roundRatio(earlyTrinkets / summary.trinketUseCount) : 0;
+  const preferredTargetRole = mostFrequent(focusTargets.map(targetRoleFromHeroId).filter((role): role is string => !!role));
+  const pressureProfile =
+    focusTargets.length >= 2 || summary.interruptCount > 0
+      ? "control"
+      : summary.responseWindowCount >= 2 || summary.trinketUseCount > 0
+        ? "burst"
+        : summary.round >= 4
+          ? "sustain"
+          : "unknown";
+  const previousMatchCount = previousMemory?.matchCount ?? 0;
+  const notes = [
+    ...(previousMemory?.notes ?? []),
+    memoryNoteFor(summary, reactionPassBias, focusTargetSwitchRate, earlyTrinketUseRate),
+  ].slice(-6);
+  return {
+    playerId,
+    matchCount: previousMatchCount + 1,
+    earlyTrinketUseRate: previousMemory ? mergeRate(previousMemory.earlyTrinketUseRate, earlyTrinketUseRate, previousMatchCount) : earlyTrinketUseRate,
+    focusTargetSwitchRate: previousMemory ? mergeRate(previousMemory.focusTargetSwitchRate, focusTargetSwitchRate, previousMatchCount) : focusTargetSwitchRate,
+    reactionPassBias: previousMemory ? mergeRate(previousMemory.reactionPassBias, reactionPassBias, previousMatchCount) : reactionPassBias,
+    preferredTargetRole: preferredTargetRole ?? previousMemory?.preferredTargetRole,
+    pressureProfile: pressureProfile === "unknown" ? (previousMemory?.pressureProfile ?? "unknown") : pressureProfile,
+    notes,
+    updatedAt: now(),
+  };
+}
+
 export function createPostGameSummary(
   roomCode: string,
   replay: RoomReplayEntry[],
   summary: RoomPlaytestSummary,
   encounter: AIEncounterSpec,
   playerSide: Side = "blue",
+  options: {
+    previousMemory?: AIPlayerMemory | null;
+    directorTraces?: AIDirectorTrace[];
+    decisionTraces?: Array<{ fallbackUsed: boolean }>;
+  } = {},
 ): DirectorSummaryResult {
   const startedAt = Date.now();
   const commands = commandEntries(replay);
@@ -536,6 +867,13 @@ export function createPostGameSummary(
         ? `Turn ${trinketTurns[0]} was decisive because a trinket was spent in the replay.`
         : `Turn ${summary.killRound ?? summary.round} is the clearest checkpoint because the match ended or stopped there.`;
   const template = templateByEncounter(encounter);
+  const playerMemory = createPlayerMemoryUpdate(`local-${playerSide}`, replay, summary, playerSide, options.previousMemory ?? null);
+  const aiMetrics = summarizeAIMetrics(options.directorTraces ?? [], options.decisionTraces ?? []);
+  const keyMoments = keyTurns.map((turn) => ({
+    turn,
+    label: interruptTurns.includes(turn) ? "Interrupt checkpoint" : trinketTurns.includes(turn) ? "Trinket checkpoint" : reactionTurns.includes(turn) ? "Reaction window" : "Match checkpoint",
+    evidence: `Replay turn ${turn} is backed by command entries and public counters.`,
+  }));
   const postGameSummary: AIPostGameSummary = {
     matchId: roomCode,
     keyTurns,
@@ -543,6 +881,33 @@ export function createPostGameSummary(
     playerMistakes,
     decisiveMoment,
     nextRunSuggestion: `Replay ${template.name} with attention on "${encounter.objectiveIds[0]}"; the Director saw ${commands.length} command(s), ${summary.responseWindowCount} reaction window(s), and ${summary.interruptCount} interrupt(s).`,
+    structuredReview: {
+      result: {
+        winner: summary.winner,
+        finalRound: summary.round,
+        commandCount: commands.length,
+        responseWindowCount: summary.responseWindowCount,
+        interruptCount: summary.interruptCount,
+        trinketUseCount: summary.trinketUseCount,
+      },
+      keyMoments,
+      sections: [
+        {
+          title: "What Worked",
+          bullets: playerStrengths,
+        },
+        {
+          title: "Review Points",
+          bullets: playerMistakes,
+        },
+        {
+          title: "Memory For Next Run",
+          bullets: playerMemory.notes.slice(-2),
+        },
+      ],
+    },
+    playerMemory,
+    aiMetrics,
   };
   const trace = traceFor({
     roomCode,
@@ -554,7 +919,27 @@ export function createPostGameSummary(
     startedAt,
     fallbackUsed: false,
   });
-  return { summary: postGameSummary, trace };
+  const memoryTrace = traceFor({
+    roomCode,
+    version: summary.version,
+    source: "heuristic",
+    inputSummary: `playerId=${playerMemory.playerId} previousMatches=${options.previousMemory?.matchCount ?? 0} commands=${commands.length}`,
+    outputType: "memory",
+    output: playerMemory,
+    startedAt,
+    fallbackUsed: false,
+  });
+  const metricsTrace = traceFor({
+    roomCode,
+    version: summary.version,
+    source: "heuristic",
+    inputSummary: `directorTraces=${options.directorTraces?.length ?? 0} decisionTraces=${options.decisionTraces?.length ?? 0}`,
+    outputType: "metrics",
+    output: aiMetrics,
+    startedAt,
+    fallbackUsed: false,
+  });
+  return { summary: postGameSummary, trace, memoryTrace, metricsTrace };
 }
 
 export function createClosingDialogue(roomCode: string, version: number, round: number, encounter: AIEncounterSpec): DirectorDialogueResult {

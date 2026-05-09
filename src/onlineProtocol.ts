@@ -7,7 +7,7 @@ export type ConnectionStatus = "disconnected" | "connecting" | "reconnecting" | 
 export type AIEnemyStyle = "aggressive" | "control" | "sustain" | "trickster";
 export type AIPersonaArchetype = "duelist" | "controller" | "mentor" | "trickster" | "rival";
 export type AIDirectorSource = "template" | "heuristic" | "llm";
-export type AIDirectorOutputType = "encounter" | "intent" | "summary" | "nextRun" | "dialogue";
+export type AIDirectorOutputType = "encounter" | "intent" | "summary" | "nextRun" | "dialogue" | "memory" | "metrics";
 export type AIThreatType = "damage" | "heal" | "defense" | "control" | "interrupt" | "movement" | "burst" | "resource";
 export type AIConfidenceBand = "low" | "mid" | "high";
 
@@ -43,6 +43,56 @@ export interface AIIntentHint {
   text: string;
 }
 
+export interface AIPlayerMemory {
+  playerId: string;
+  matchCount: number;
+  earlyTrinketUseRate: number;
+  focusTargetSwitchRate: number;
+  reactionPassBias: number;
+  preferredTargetRole?: string;
+  pressureProfile: "burst" | "control" | "sustain" | "unknown";
+  notes: string[];
+  updatedAt: string;
+}
+
+export interface AIPostGameKeyMoment {
+  turn: number;
+  label: string;
+  evidence: string;
+}
+
+export interface AIPostGameReviewSection {
+  title: string;
+  bullets: string[];
+}
+
+export interface AICostMetrics {
+  estimatedUsd: number;
+  llmCallCount: number;
+  heuristicCallCount: number;
+  templateCallCount: number;
+}
+
+export interface AILatencyMetrics {
+  totalMs: number;
+  averageMs: number;
+  maxMs: number;
+}
+
+export interface AIFallbackMetrics {
+  directorFallbackCount: number;
+  botFallbackCount: number;
+  totalFallbackCount: number;
+}
+
+export interface AIObservabilityMetrics {
+  directorTraceCount: number;
+  decisionTraceCount: number;
+  cost: AICostMetrics;
+  latency: AILatencyMetrics;
+  fallback: AIFallbackMetrics;
+}
+
 export interface AIPostGameSummary {
   matchId: string;
   keyTurns: number[];
@@ -50,6 +100,20 @@ export interface AIPostGameSummary {
   playerMistakes: string[];
   decisiveMoment: string;
   nextRunSuggestion: string;
+  structuredReview?: {
+    result: {
+      winner: Side | null;
+      finalRound: number;
+      commandCount: number;
+      responseWindowCount: number;
+      interruptCount: number;
+      trinketUseCount: number;
+    };
+    keyMoments: AIPostGameKeyMoment[];
+    sections: AIPostGameReviewSection[];
+  };
+  playerMemory?: AIPlayerMemory;
+  aiMetrics?: AIObservabilityMetrics;
 }
 
 export interface AIDirectorDialogue {
@@ -117,6 +181,8 @@ export interface AIEncounterDebugState {
   decisionTraces: PublicAIDecisionTrace[];
   replaySummary: RoomPlaytestSummary;
   postGameSummary: AIPostGameSummary | null;
+  playerMemory: AIPlayerMemory | null;
+  aiMetrics: AIObservabilityMetrics;
   autoAdvance: {
     lastStepCount: number;
     lastStoppedReason: "humanTurn" | "winner" | "noLegalCommand" | "maxSteps" | "notAIEncounter";

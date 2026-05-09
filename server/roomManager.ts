@@ -10,6 +10,7 @@ import {
   createDirectorEncounter,
   createIntentHint,
   createPostGameSummary,
+  summarizeAIMetrics,
 } from "./aiDirector";
 import { chooseBotCommand, type AIDecisionTrace, type BotPolicyStyle } from "./aiBotPolicy";
 import { createReplayExport } from "./playtestExport";
@@ -19,8 +20,10 @@ import type {
   AIEncounterSpec,
   AIDirectorTrace,
   AIDirectorDialogue,
+  AIObservabilityMetrics,
   AIIntentHint,
   AIPersona,
+  AIPlayerMemory,
   AIPostGameSummary,
   PublicAIDirectorTrace,
   PublicAIDecisionTrace,
@@ -45,6 +48,8 @@ interface AIEncounterRoomState {
   decisionTraces: AIDecisionTrace[];
   hintedRounds: Set<number>;
   postGameSummary: AIPostGameSummary | null;
+  playerMemory: AIPlayerMemory | null;
+  aiMetrics: AIObservabilityMetrics;
   summaryRegistered: boolean;
   lastStepCount: number;
   lastStoppedReason: AIEncounterDebugState["autoAdvance"]["lastStoppedReason"];
@@ -386,6 +391,8 @@ export class RoomManager {
       decisionTraces: [],
       hintedRounds: new Set<number>(),
       postGameSummary: null,
+      playerMemory: null,
+      aiMetrics: summarizeAIMetrics(),
       summaryRegistered: false,
       lastStepCount: 0,
       lastStoppedReason: "humanTurn",
@@ -558,12 +565,20 @@ export class RoomManager {
     }
     if (room.state.winner && !ai.summaryRegistered) {
       const summary = createReplayExport(room).summary;
-      const summaryResult = createPostGameSummary(room.roomCode, room.replay, summary, ai.encounter, ai.humanSide);
+      const summaryResult = createPostGameSummary(room.roomCode, room.replay, summary, ai.encounter, ai.humanSide, {
+        previousMemory: ai.playerMemory,
+        directorTraces: ai.directorTraces,
+        decisionTraces: ai.decisionTraces,
+      });
       const closingDialogue = createClosingDialogue(room.roomCode, summary.version, summary.round, ai.encounter);
       ai.postGameSummary = summaryResult.summary;
+      ai.playerMemory = summaryResult.summary.playerMemory ?? null;
+      ai.aiMetrics = summaryResult.summary.aiMetrics ?? summarizeAIMetrics();
       ai.dialogue.push(closingDialogue.dialogue);
-      ai.directorTraces.push(summaryResult.trace, closingDialogue.trace);
+      ai.directorTraces.push(summaryResult.trace, summaryResult.memoryTrace, summaryResult.metricsTrace, closingDialogue.trace);
       this.registerDirectorTrace(room.roomCode, ai.aiSide, summaryResult.trace);
+      this.registerDirectorTrace(room.roomCode, ai.aiSide, summaryResult.memoryTrace);
+      this.registerDirectorTrace(room.roomCode, ai.aiSide, summaryResult.metricsTrace);
       this.registerDirectorTrace(room.roomCode, ai.aiSide, closingDialogue.trace);
       ai.summaryRegistered = true;
     }
@@ -608,6 +623,7 @@ export class RoomManager {
     this.refreshAIEncounterDirector(room);
     ai.lastStepCount = stepCount;
     ai.lastStoppedReason = stoppedReason;
+    ai.aiMetrics = summarizeAIMetrics(ai.directorTraces, ai.decisionTraces);
     return { stepCount, stoppedReason };
   }
 
@@ -616,6 +632,7 @@ export class RoomManager {
     const ai = room?.aiEncounter;
     if (!room || !ai) return null;
     this.refreshAIEncounterDirector(room);
+    ai.aiMetrics = summarizeAIMetrics(ai.directorTraces, ai.decisionTraces);
     const replaySummary = createReplayExport(room).summary;
     return {
       roomCode: room.roomCode,
@@ -637,6 +654,8 @@ export class RoomManager {
       decisionTraces: ai.decisionTraces.slice(-12).map(redactDecisionTrace),
       replaySummary,
       postGameSummary: ai.postGameSummary ? structuredClone(ai.postGameSummary) : null,
+      playerMemory: ai.playerMemory ? structuredClone(ai.playerMemory) : null,
+      aiMetrics: structuredClone(ai.aiMetrics),
       autoAdvance: {
         lastStepCount: ai.lastStepCount,
         lastStoppedReason: ai.lastStoppedReason,

@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -15,7 +16,32 @@ const requiredFiles = [
   "unity-client/Assets/AzerothArena/Scripts/Protocol/UnityRoomClient.cs",
   "unity-client/Assets/AzerothArena/Scripts/Protocol/UnityRoomClient.cs.meta",
   "unity-client/Assets/AzerothArena/Scripts/State/ClientSnapshotStore.cs",
-  "unity-client/Assets/AzerothArena/Scripts/State/ClientSnapshotStore.cs.meta"
+  "unity-client/Assets/AzerothArena/Scripts/State/ClientSnapshotStore.cs.meta",
+  "unity-client/Assets/AzerothArena/Scripts/Input/InputPermissionGuard.cs",
+  "unity-client/Assets/AzerothArena/Scripts/Input/InputPermissionGuard.cs.meta",
+  "unity-client/Assets/AzerothArena/Scripts/Input/TargetSelectionController.cs",
+  "unity-client/Assets/AzerothArena/Scripts/Input/TargetSelectionController.cs.meta",
+  "unity-client/Assets/AzerothArena/Scripts/Commands/VisualCommandFactory.cs",
+  "unity-client/Assets/AzerothArena/Scripts/Commands/VisualCommandFactory.cs.meta",
+  "unity-client/Assets/AzerothArena/Scripts/UI/MatchHud.cs",
+  "unity-client/Assets/AzerothArena/Scripts/UI/MatchHud.cs.meta",
+  "unity-client/Assets/AzerothArena/Scripts/UI/ToastPromptView.cs",
+  "unity-client/Assets/AzerothArena/Scripts/UI/ToastPromptView.cs.meta",
+  "unity-client/Assets/AzerothArena/Scripts/UI/SafeAreaFitter.cs",
+  "unity-client/Assets/AzerothArena/Scripts/UI/SafeAreaFitter.cs.meta",
+  "unity-client/Assets/AzerothArena/Scripts/UI/TouchTargetExpander.cs",
+  "unity-client/Assets/AzerothArena/Scripts/UI/TouchTargetExpander.cs.meta",
+  "unity-client/Assets/AzerothArena/Scripts/UI/CardLongPressPreview.cs",
+  "unity-client/Assets/AzerothArena/Scripts/UI/CardLongPressPreview.cs.meta",
+  "unity-client/Assets/AzerothArena/Scripts/Input/TargetSnapController.cs",
+  "unity-client/Assets/AzerothArena/Scripts/Input/TargetSnapController.cs.meta",
+  "unity-client/Assets/AzerothArena/Scripts/UI/ReactionWindowMobilePrompt.cs",
+  "unity-client/Assets/AzerothArena/Scripts/UI/ReactionWindowMobilePrompt.cs.meta",
+  "unity-client/Assets/AzerothArena/Scripts/Visual/MobileFeedbackController.cs",
+  "unity-client/Assets/AzerothArena/Scripts/Visual/MobileFeedbackController.cs.meta",
+  "unity-client/Assets/AzerothArena/Generated/OnlineProtocolManifest.json",
+  "unity-client/Assets/AzerothArena/Generated/OnlineProtocolManifest.json.meta",
+  "scripts/generate-unity-protocol-manifest.mjs"
 ];
 
 const requiredMarkers = new Map([
@@ -79,6 +105,133 @@ const requiredMarkers = new Map([
     "ApplyRoomError",
     "HasSession",
     "LegalCommands"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/Input/CardDragController.cs", [
+    "SetInputAllowed",
+    "RequestRebound",
+    "ReboundRequested",
+    "BeginCardTargeting",
+    "TargetSnapController",
+    "TargetSelectionController",
+    "MobileFeedbackController",
+    "SnappedTargetReleased"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/Input/InputPermissionGuard.cs", [
+    "public sealed class InputPermissionGuard",
+    "CanSubmit",
+    "InputLocked",
+    "IsStillLegal"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/Input/TargetSelectionController.cs", [
+    "public sealed class TargetSelectionController",
+    "BeginCardTargeting",
+    "BeginReactionPass",
+    "BeginReactionTrinket",
+    "SelectTarget",
+    "SelectZone",
+    "SubmitResolvedCommandAsync",
+    "GameProtocol.CloneCommand",
+    "ReboundRequested"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/Commands/VisualCommandFactory.cs", [
+    "public sealed class VisualCommandFactory",
+    "BuildPlayerViewDelta",
+    "BuildReplayVisualCommands",
+    "BuildGameEventCommand",
+    "DrawCardsVisualCommand",
+    "PlayCardVisualCommand",
+    "DamageVisualCommand",
+    "EntityDefeatedVisualCommand",
+    "RoundStartVisualCommand",
+    "SnapshotReconcileVisualCommand",
+    "card-drawn",
+    "card-played",
+    "damage",
+    "knockout",
+    "round-start"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/UI/MatchHud.cs", [
+    "public sealed class MatchHud",
+    "CreateAIEncounter",
+    "BeginFirstPlayableCard",
+    "SelectZone",
+    "HandleRoomError",
+    "EnqueuePlayerViewDelta",
+    "ReactionWindowMobilePrompt",
+    "MobileFeedbackController"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/UI/ToastPromptView.cs", [
+    "public sealed class ToastPromptView",
+    "Show",
+    "HideAfterDelay"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/UI/SafeAreaFitter.cs", [
+    "public sealed class SafeAreaFitter",
+    "Screen.safeArea",
+    "landscapeReferenceResolution",
+    "ApplySafeArea"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/UI/TouchTargetExpander.cs", [
+    "public sealed class TouchTargetExpander",
+    "minimumTouchSize",
+    "LayoutElement",
+    "EnsureTouchTarget"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/UI/CardLongPressPreview.cs", [
+    "public sealed class CardLongPressPreview",
+    "IPointerDownHandler",
+    "holdSeconds",
+    "ShowPreview",
+    "HidePreview",
+    "ClampToParent"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/Input/TargetSnapController.cs", [
+    "public sealed class TargetSnapController",
+    "snapRadiusPixels",
+    "SetPrototypeSelectableTargets",
+    "RegisterTargetAnchor",
+    "GetComponentInParent<TargetSelectionController>",
+    "TrySelectSnappedTarget",
+    "SnapTargetChanged"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/UI/ReactionWindowMobilePrompt.cs", [
+    "public sealed class ReactionWindowMobilePrompt",
+    "resolveReaction",
+    "BeginReactionPass",
+    "BeginReactionTrinket",
+    "TouchTargetExpander"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/Visual/MobileFeedbackController.cs", [
+    "public sealed class MobileFeedbackController",
+    "AudioSource",
+    "Handheld.Vibrate",
+    "PlayReject",
+    "PlaySubmit"
+  ]],
+  ["unity-client/Assets/AzerothArena/Scripts/MatchVisualPrototypeBootstrap.cs", [
+    "SafeAreaFitter",
+    "TouchTargetExpander",
+    "CardLongPressPreview",
+    "MobileFeedbackController",
+    "TargetSnapController",
+    "SetPrototypeSelectableTargets",
+    "RegisterTargetAnchor"
+  ]],
+  ["unity-client/Assets/AzerothArena/Generated/OnlineProtocolManifest.json", [
+    "\"schemaVersion\": 1",
+    "\"clientMessages\"",
+    "\"serverMessages\"",
+    "\"commandTypes\"",
+    "\"gameEventTypes\"",
+    "\"week8Contract\"",
+    "\"week9Contract\""
+  ]],
+  ["scripts/generate-unity-protocol-manifest.mjs", [
+    "OnlineProtocolManifest.json",
+    "--check",
+    "sourceOfTruth",
+    "week8Contract",
+    "week9Contract"
   ]]
 ]);
 
@@ -137,6 +290,15 @@ for (const message of protocolMessages) {
   if (!unityProtocol.includes(`"${message}"`)) {
     failures.push(`GameProtocol.cs is missing expected protocol message: ${message}`);
   }
+}
+
+const manifestCheck = spawnSync(process.execPath, ["scripts/generate-unity-protocol-manifest.mjs", "--check"], {
+  cwd: root,
+  encoding: "utf8"
+});
+if (manifestCheck.status !== 0) {
+  const details = [manifestCheck.stdout, manifestCheck.stderr].filter(Boolean).join("\n").trim();
+  failures.push("Unity protocol manifest check failed" + (details ? `: ${details}` : ""));
 }
 
 const metaFiles = collectFiles(join(root, "unity-client/Assets/AzerothArena"), ".meta");

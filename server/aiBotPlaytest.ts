@@ -8,6 +8,8 @@ import type {
   AIDirectorTrace,
   AIEncounterSpec,
   AIIntentHint,
+  AIObservabilityMetrics,
+  AIPlayerMemory,
   AIPostGameSummary,
   RoomPlaytestSummary,
   RoomReplayEntry,
@@ -23,6 +25,7 @@ export interface AIBotPlaytestOptions {
   outputDir?: string;
   director?: boolean;
   encounterTemplateId?: string;
+  playerMemory?: AIPlayerMemory | null;
 }
 
 export interface AIBotPlaytestStep {
@@ -51,6 +54,8 @@ export interface AIBotPlaytestDirectorOutput {
   encounter: AIEncounterSpec;
   intentHints: AIIntentHint[];
   postGameSummary: AIPostGameSummary;
+  playerMemory: AIPlayerMemory | null;
+  aiMetrics: AIObservabilityMetrics;
   dialogue: AIDirectorDialogue[];
   traces: AIDirectorTrace[];
 }
@@ -80,7 +85,7 @@ function markdownFor(result: Omit<AIBotPlaytestResult, "json" | "markdown">) {
   const directorLines = result.director
     ? [
         "",
-        "## AI Director v0",
+        "## AI Director v1",
         "",
         `- Encounter: \`${result.director.encounter.templateId}\``,
         `- Persona: \`${result.director.encounter.personaId}\``,
@@ -88,8 +93,18 @@ function markdownFor(result: Omit<AIBotPlaytestResult, "json" | "markdown">) {
         `- Intent hints: \`${result.director.intentHints.length}\``,
         `- Dialogue lines: \`${result.director.dialogue.length}\``,
         `- Director traces: \`${result.director.traces.length}\``,
+        `- Player memory matches: \`${result.director.playerMemory?.matchCount ?? 0}\``,
+        `- AI metrics: cost=$${result.director.aiMetrics.cost.estimatedUsd.toFixed(3)}, latency=${result.director.aiMetrics.latency.totalMs}ms, fallbacks=${result.director.aiMetrics.fallback.totalFallbackCount}`,
         `- Decisive moment: ${result.director.postGameSummary.decisiveMoment}`,
         "",
+        "## Structured Review",
+        "",
+        ...(result.director.postGameSummary.structuredReview?.sections.flatMap((section) => [
+          `### ${section.title}`,
+          "",
+          ...section.bullets.map((bullet) => `- ${bullet}`),
+          "",
+        ]) ?? []),
         "## Intent Tail",
         "",
         ...result.director.intentHints.slice(-6).map((hint) => `- Turn ${hint.turn}: ${hint.threatType}/${hint.confidenceBand} - ${hint.text}`),
@@ -231,17 +246,33 @@ export function runAIBotPlaytest(options: AIBotPlaytestOptions = {}): AIBotPlayt
   const preliminarySummary = manager.summarize(blue.roomCode);
   let director: AIBotPlaytestDirectorOutput | null = null;
   if (directorEnabled && encounter) {
-    const summaryResult = createPostGameSummary(blue.roomCode, room.replay, preliminarySummary, encounter, "blue");
+    const summaryResult = createPostGameSummary(blue.roomCode, room.replay, preliminarySummary, encounter, "blue", {
+      previousMemory: options.playerMemory ?? null,
+      directorTraces,
+      decisionTraces: steps.map((step) => step.trace),
+    });
     const closingDialogue = createClosingDialogue(blue.roomCode, preliminarySummary.version, preliminarySummary.round, encounter);
     directorTraces.push(summaryResult.trace);
+    directorTraces.push(summaryResult.memoryTrace);
+    directorTraces.push(summaryResult.metricsTrace);
     directorTraces.push(closingDialogue.trace);
     dialogue.push(closingDialogue.dialogue);
     manager.registerDirectorTrace(blue.roomCode, "red", summaryResult.trace);
+    manager.registerDirectorTrace(blue.roomCode, "red", summaryResult.memoryTrace);
+    manager.registerDirectorTrace(blue.roomCode, "red", summaryResult.metricsTrace);
     manager.registerDirectorTrace(blue.roomCode, "red", closingDialogue.trace);
     director = {
       encounter,
       intentHints,
       postGameSummary: summaryResult.summary,
+      playerMemory: summaryResult.summary.playerMemory ?? null,
+      aiMetrics: summaryResult.summary.aiMetrics ?? {
+        directorTraceCount: 0,
+        decisionTraceCount: 0,
+        cost: { estimatedUsd: 0, llmCallCount: 0, heuristicCallCount: 0, templateCallCount: 0 },
+        latency: { totalMs: 0, averageMs: 0, maxMs: 0 },
+        fallback: { directorFallbackCount: 0, botFallbackCount: 0, totalFallbackCount: 0 },
+      },
       dialogue,
       traces: directorTraces,
     };

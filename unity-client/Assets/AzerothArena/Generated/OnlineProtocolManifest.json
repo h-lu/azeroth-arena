@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "sourceOfTruth": [
+    "src/onlineProtocol.ts",
+    "packages/rules/src/types.ts"
+  ],
+  "generatedFor": "unity-client",
+  "clientMessages": [
+    "createRoom",
+    "createAIEncounter",
+    "joinRoom",
+    "reconnect",
+    "submitCommand",
+    "exportReplay"
+  ],
+  "serverMessages": [
+    "roomJoined",
+    "playerView",
+    "roomError",
+    "replayExport",
+    "aiEncounterUpdated",
+    "opponentDisconnected"
+  ],
+  "commandTypes": [
+    "startTurn",
+    "endTurn",
+    "pass",
+    "activateHero",
+    "moveHero",
+    "playCard",
+    "resolveReaction",
+    "selectFocusTarget",
+    "useTrinket",
+    "discardCards"
+  ],
+  "gameEventTypes": [
+    "activation-end",
+    "activate",
+    "card-drawn",
+    "card-played",
+    "cleanse",
+    "control-applied",
+    "control-downgraded",
+    "control-immune",
+    "control",
+    "cooldown-start",
+    "damage",
+    "debuff",
+    "discard",
+    "discard-auto",
+    "dispel",
+    "end-round-damage",
+    "fake-cast",
+    "fake-cast-success",
+    "focus",
+    "focus-selected",
+    "hard-control-consumed",
+    "heal",
+    "inline-defense",
+    "interrupted",
+    "knockout",
+    "move",
+    "reaction-defense",
+    "reaction-opened",
+    "reaction-pass",
+    "reaction-play",
+    "reaction-resolved",
+    "round-end",
+    "round-start",
+    "shield",
+    "turn-pass",
+    "trinket",
+    "unimplemented"
+  ],
+  "temporaryDtoFiles": [
+    "unity-client/Assets/AzerothArena/Scripts/Protocol/ClientMessageModels.cs",
+    "unity-client/Assets/AzerothArena/Scripts/Protocol/ServerEventModels.cs"
+  ],
+  "week8Contract": {
+    "submitPath": "Unity TargetSelectionController selects an existing legal command and UnityRoomClient submits it with expectedVersion.",
+    "rejectFeedback": "roomError drives TargetSelectionController.ReboundRequested and MatchHud toast state.",
+    "eventMapping": "VisualCommandFactory maps PlayerView.state.log deltas into VisualCommandQueue commands before snapshot reconcile."
+  },
+  "week9Contract": {
+    "typedEvents": "packages/rules/src/types.ts declares GameEvent as a discriminated union keyed by GameEventPayloadByType.",
+    "formalVisualCommands": "VisualCommandFactory maps card-drawn, card-played, damage, knockout, and round-start into named VisualCommandQueue commands.",
+    "replayPath": "VisualCommandFactory.BuildReplayVisualCommands maps replay export command events through the same GameEvent-to-VisualCommand path before snapshot reconcile.",
+    "hiddenInfoBoundary": "card-drawn events expose public counts only; card identity is recovered from the viewer snapshot during reconcile."
+  }
+}

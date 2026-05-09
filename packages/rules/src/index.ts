@@ -4,6 +4,8 @@ export type {
   CardState,
   Command,
   GameEvent,
+  GameEventPayloadByType,
+  GameEventType,
   GamePhase,
   GameState,
   HeroState,
