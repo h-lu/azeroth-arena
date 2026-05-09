@@ -343,6 +343,17 @@ npm run validate:unity-websocket
 - 首版无账号、匹配、排行榜、观战、持久化；AI 目前仅包含非 LLM BotPolicy baseline 和离线 AI vs AI smoke。
 - 响应窗口首版手动 pass，无倒计时裁决。
 
+## 下一阶段：Unity 真机可玩 Build
+
+Week 12 后的下一阶段计划已归档到 `docs/planning/unity-playable-build/`。目标是 Android-first / Mac-ready 的 Unity playable build：真机连接本地或局域网 TS server，创建 AI Encounter，并完整打一局。
+
+核心计划文件：
+
+- `docs/planning/unity-playable-build/TASK.md`
+- `docs/planning/unity-playable-build/PLAN.md`
+- `docs/planning/unity-playable-build/PROGRESS.md`
+- `docs/planning/unity-playable-build/CHECKLIST.json`
+
 ## 下一步
 
 进入 playtest / MVP+：

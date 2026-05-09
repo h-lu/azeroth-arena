@@ -1,0 +1,55 @@
+{
+  "status": "planned",
+  "items": [
+    {
+      "name": "multi_agent_architecture_review",
+      "status": "done",
+      "acceptance": "Reviewed current Unity client architecture and identified live scene, snapshot presenter, and build-readiness gaps."
+    },
+    {
+      "name": "multi_agent_build_pipeline_review",
+      "status": "done",
+      "acceptance": "Reviewed WSL/Windows/Android/iOS build constraints and recommended Android-first validation path."
+    },
+    {
+      "name": "multi_agent_gameplay_ux_review",
+      "status": "done",
+      "acceptance": "Defined P0 playable target as AI Encounter full match on device with command coverage and fallback legal command drawer."
+    },
+    {
+      "name": "write_unity_playable_build_plan",
+      "status": "done",
+      "acceptance": "TASK.md, PLAN.md, PROGRESS.md, and CHECKLIST.json exist under deliverables/azeroth-arena-unity-playable-build."
+    },
+    {
+      "name": "phase_0_build_hygiene",
+      "status": "todo",
+      "acceptance": "Unity project has BuildSettings/PlayerSettings/build scripts/server URL config and can compile in Unity Editor."
+    },
+    {
+      "name": "phase_1_live_match_shell",
+      "status": "todo",
+      "acceptance": "Unity build/editor can connect to TS server, create AI Encounter, and receive/display PlayerView status."
+    },
+    {
+      "name": "phase_2_snapshot_renderers",
+      "status": "todo",
+      "acceptance": "PlayerView renders heroes, zones, hand, opponent hand count, status, and AI intent without mock data."
+    },
+    {
+      "name": "phase_3_playable_input",
+      "status": "todo",
+      "acceptance": "All core legal commands are submit-able through Unity UI, with Legal Commands Drawer fallback."
+    },
+    {
+      "name": "phase_4_visual_commands_p0",
+      "status": "todo",
+      "acceptance": "Core server events produce readable animations/feedback and reconcile to snapshot."
+    },
+    {
+      "name": "phase_5_device_polish",
+      "status": "todo",
+      "acceptance": "10-minute device playtest passes without crash, soft lock, or unusable touch/network UX."
+    }
+  ]
+}
