@@ -1,3 +1,5 @@
+@import "./battle/battle.css";
+
 :root {
   color-scheme: dark;
   --ink: #f6ead7;
@@ -69,6 +71,12 @@ pre {
 
 #root {
   isolation: isolate;
+}
+
+.app-shell {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .game-client-shell {
