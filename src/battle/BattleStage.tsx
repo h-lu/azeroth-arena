@@ -15,9 +15,11 @@ import {
   findFocusTargetCommand,
   findPassCommand,
   findPlayCardCommandForTarget,
+  findPlayCardCommandForZone,
   getPlayableCardCommands,
   getReactionCommands,
 } from "./targetModel";
+import type { ZoneId } from "../../packages/data/src";
 
 type BattleStageProps = {
   model: BattleViewModel;
@@ -49,7 +51,7 @@ export default function BattleStage({ model, connectionStatus, error, onSubmitCo
       return;
     }
     setSelectedCardId(cardId);
-    setInputFeedback("Choose a highlighted hero target.");
+    setInputFeedback(playableCommands.some((command) => command.toZone) ? "Choose a hero or lane target." : "Choose a highlighted hero target.");
   }
 
   function targetHero(heroId: string) {
@@ -62,6 +64,24 @@ export default function BattleStage({ model, connectionStatus, error, onSubmitCo
     setSelectedCardId(null);
     setInputFeedback(null);
     onSubmitCommand(command);
+  }
+
+  function targetZone(toZone: ZoneId) {
+    if (!selectedCardId) return;
+    const zoneCommands = getPlayableCardCommands(model.legalCommands, selectedCardId).filter((command) => command.toZone === toZone);
+    const zoneOnlyCommand = zoneCommands.find((command) => command.targetIds.length === 0);
+    if (zoneOnlyCommand) {
+      setSelectedCardId(null);
+      setInputFeedback(null);
+      onSubmitCommand(zoneOnlyCommand);
+      return;
+    }
+    const zoneCommand = findPlayCardCommandForZone(model.legalCommands, { cardId: selectedCardId, toZone });
+    if (zoneCommand) {
+      setInputFeedback("That card also needs a hero target before choosing this lane.");
+      return;
+    }
+    setInputFeedback("That lane is not a legal target for the selected card.");
   }
 
   function activateOrTarget(heroId: string) {
@@ -82,7 +102,9 @@ export default function BattleStage({ model, connectionStatus, error, onSubmitCo
       <div className="battle-zones">
         {model.zones.map((zone) => (
           <section key={zone.id} className="battle-zone">
-            <span>{zone.label}</span>
+            <button type="button" className="zone-target-button" onClick={() => targetZone(zone.id)}>
+              {zone.label}
+            </button>
             <div className="zone-row enemy-row">
               {zone.enemyHeroes.map((hero) => (
                 <HeroSlot

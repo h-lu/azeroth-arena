@@ -14,6 +14,13 @@ type PlayCardTargetQuery = {
   sourceHeroId?: string;
 };
 
+type PlayCardZoneQuery = {
+  cardId: string;
+  toZone: ZoneId;
+  targetId?: string;
+  sourceHeroId?: string;
+};
+
 export type PlayCardCommand = Extract<Command, { type: "playCard" }>;
 export type ReactionCommand = Extract<Command, { type: "resolveReaction" }>;
 
@@ -54,6 +61,14 @@ export function getPlayableCardCommands(commands: Command[], cardId: string): Pl
 export function findPlayCardCommandForTarget(commands: Command[], query: PlayCardTargetQuery) {
   return getPlayableCardCommands(commands, query.cardId).find((command) => (
     command.targetIds.includes(query.targetId)
+    && (!query.sourceHeroId || command.sourceHeroId === query.sourceHeroId)
+  )) ?? null;
+}
+
+export function findPlayCardCommandForZone(commands: Command[], query: PlayCardZoneQuery) {
+  return getPlayableCardCommands(commands, query.cardId).find((command) => (
+    command.toZone === query.toZone
+    && (!query.targetId || command.targetIds.includes(query.targetId))
     && (!query.sourceHeroId || command.sourceHeroId === query.sourceHeroId)
   )) ?? null;
 }

@@ -39,3 +39,11 @@ Implement Phase 0 and Phase 1:
 - Illegal card-target clicks now produce local feedback without submitting to the server.
 - Added a compact reaction prompt for `resolveReaction` commands while keeping `LegalCommandsDrawer` as the complete fallback.
 - Drag card input, zone target selection, and Pixi/WebGL FX remain future Phase 2/3 work.
+
+## 2026-05-13 Phase 2 Zone Target Slice
+
+- Added `toZone` command lookup for selected cards.
+- Lane labels are now clickable zone targets during card selection.
+- Zone-only movement cards can submit directly from card selection plus lane click.
+- Cards that require both hero and zone targets now produce local guidance instead of submitting an incomplete command.
+- Drag card input and Pixi/WebGL FX remain future Phase 2/3 work.

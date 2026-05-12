@@ -7,6 +7,7 @@ import {
   findPassCommand,
   findPlayCardCommand,
   findPlayCardCommandForTarget,
+  findPlayCardCommandForZone,
   getPlayableCardCommands,
   getReactionCommands,
 } from "../../src/battle/targetModel";
@@ -18,6 +19,8 @@ const commands: Command[] = [
   { type: "selectFocusTarget", playerId: "blue", targetId: "red-priest" },
   { type: "playCard", playerId: "blue", sourceHeroId: "blue-mage", cardId: "011-mage-fireball", targetIds: ["red-priest"] },
   { type: "playCard", playerId: "blue", sourceHeroId: "blue-priest", cardId: "019-priest-flash-heal", targetIds: ["blue-mage"] },
+  { type: "playCard", playerId: "blue", sourceHeroId: "blue-rogue", cardId: "048-common-tactical-retreat", targetIds: [], toZone: "left" },
+  { type: "playCard", playerId: "blue", sourceHeroId: "blue-druid", cardId: "042-druid-wild-charge", targetIds: ["red-priest"], toZone: "right" },
   { type: "resolveReaction", playerId: "blue", sourceHeroId: "blue-mage", pass: true },
   { type: "resolveReaction", playerId: "blue", sourceHeroId: "blue-rogue", cardId: "010-rogue-kick", targetIds: ["red-mage"] },
 ];
@@ -58,6 +61,30 @@ describe("target model", () => {
   });
 
   test("extracts reaction commands for the prompt", () => {
-    expect(getReactionCommands(commands)).toEqual([commands[6], commands[7]]);
+    expect(getReactionCommands(commands)).toEqual([commands[8], commands[9]]);
+  });
+
+  test("finds a selected card command by clicked zone target", () => {
+    expect(findPlayCardCommandForZone(commands, {
+      cardId: "048-common-tactical-retreat",
+      toZone: "left",
+    })).toEqual(commands[6]);
+    expect(findPlayCardCommandForZone(commands, {
+      cardId: "048-common-tactical-retreat",
+      toZone: "right",
+    })).toBeNull();
+  });
+
+  test("can disambiguate zone commands that also carry a hero target", () => {
+    expect(findPlayCardCommandForZone(commands, {
+      cardId: "042-druid-wild-charge",
+      targetId: "red-priest",
+      toZone: "right",
+    })).toEqual(commands[7]);
+    expect(findPlayCardCommandForZone(commands, {
+      cardId: "042-druid-wild-charge",
+      targetId: "blue-mage",
+      toZone: "right",
+    })).toBeNull();
   });
 });
