@@ -6,6 +6,9 @@ import {
   findFocusTargetCommand,
   findPassCommand,
   findPlayCardCommand,
+  findPlayCardCommandForTarget,
+  getPlayableCardCommands,
+  getReactionCommands,
 } from "../../src/battle/targetModel";
 
 const commands: Command[] = [
@@ -14,6 +17,9 @@ const commands: Command[] = [
   { type: "activateHero", playerId: "blue", heroId: "blue-mage" },
   { type: "selectFocusTarget", playerId: "blue", targetId: "red-priest" },
   { type: "playCard", playerId: "blue", sourceHeroId: "blue-mage", cardId: "011-mage-fireball", targetIds: ["red-priest"] },
+  { type: "playCard", playerId: "blue", sourceHeroId: "blue-priest", cardId: "019-priest-flash-heal", targetIds: ["blue-mage"] },
+  { type: "resolveReaction", playerId: "blue", sourceHeroId: "blue-mage", pass: true },
+  { type: "resolveReaction", playerId: "blue", sourceHeroId: "blue-rogue", cardId: "010-rogue-kick", targetIds: ["red-mage"] },
 ];
 
 describe("target model", () => {
@@ -33,5 +39,25 @@ describe("target model", () => {
       cardId: "011-mage-fireball",
       targetIds: ["red-priest"],
     })).toEqual(commands[4]);
+  });
+
+  test("lists playable commands for a selected card", () => {
+    expect(getPlayableCardCommands(commands, "011-mage-fireball")).toEqual([commands[4]]);
+    expect(getPlayableCardCommands(commands, "missing-card")).toEqual([]);
+  });
+
+  test("finds a selected card command by clicked hero target", () => {
+    expect(findPlayCardCommandForTarget(commands, {
+      cardId: "019-priest-flash-heal",
+      targetId: "blue-mage",
+    })).toEqual(commands[5]);
+    expect(findPlayCardCommandForTarget(commands, {
+      cardId: "019-priest-flash-heal",
+      targetId: "red-priest",
+    })).toBeNull();
+  });
+
+  test("extracts reaction commands for the prompt", () => {
+    expect(getReactionCommands(commands)).toEqual([commands[6], commands[7]]);
   });
 });

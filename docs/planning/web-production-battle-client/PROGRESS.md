@@ -31,3 +31,11 @@ Implement Phase 0 and Phase 1:
 - Verification run: `npm test`, `npm run typecheck`, `npm run build`, `npm run smoke:online`, `npm run playtest:ai-director-v1`.
 - Local server smoke: `npm run dev:online`, `curl http://localhost:5173/`, and `curl http://localhost:8788/healthz`.
 - Browser plugin QA was attempted but the in-app browser connection timed out twice before navigation; complete visual click-through remains the next manual QA item.
+
+## 2026-05-12 Phase 2 Click Input Slice
+
+- Added click-first card selection for the production battle surface.
+- Clicking a playable hand card selects it; clicking a legal hero target submits the matching `playCard` command from `PlayerView.legalCommands`.
+- Illegal card-target clicks now produce local feedback without submitting to the server.
+- Added a compact reaction prompt for `resolveReaction` commands while keeping `LegalCommandsDrawer` as the complete fallback.
+- Drag card input, zone target selection, and Pixi/WebGL FX remain future Phase 2/3 work.
