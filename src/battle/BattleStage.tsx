@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DndContext, type DragEndEvent } from "@dnd-kit/core";
 import type { Command } from "../../packages/rules/src";
 import BattleSceneLayer from "../battle-scene/BattleSceneLayer";
 import AiOpponentPanel from "../battle-ui/AiOpponentPanel";
@@ -7,6 +8,7 @@ import HeroSlot from "../battle-ui/HeroSlot";
 import LegalCommandsDrawer from "../battle-ui/LegalCommandsDrawer";
 import MatchHud from "../battle-ui/MatchHud";
 import ReactionPrompt from "../battle-ui/ReactionPrompt";
+import ZoneTargetButton from "../battle-ui/ZoneTargetButton";
 import type { ConnectionStatus } from "../onlineProtocol";
 import type { BattleViewModel } from "./battleState";
 import {
@@ -20,6 +22,7 @@ import {
   getReactionCommands,
 } from "./targetModel";
 import type { ZoneId } from "../../packages/data/src";
+import { resolvePlayCardDrop, type BattleDropTarget } from "./dragModel";
 
 type BattleStageProps = {
   model: BattleViewModel;
@@ -84,6 +87,36 @@ export default function BattleStage({ model, connectionStatus, error, onSubmitCo
     setInputFeedback("That lane is not a legal target for the selected card.");
   }
 
+  function parseDropTarget(event: DragEndEvent): { cardId: string; target: BattleDropTarget } | null {
+    const cardId = event.active.data.current?.cardId;
+    const target = event.over?.data.current;
+    if (typeof cardId !== "string" || !target) return null;
+    if (target.kind === "hero" && typeof target.heroId === "string") {
+      return { cardId, target: { kind: "hero", heroId: target.heroId } };
+    }
+    if (target.kind === "zone" && typeof target.zoneId === "string") {
+      return { cardId, target: { kind: "zone", zoneId: target.zoneId as ZoneId } };
+    }
+    return null;
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const dropTarget = parseDropTarget(event);
+    if (!dropTarget) {
+      setInputFeedback("Drop the card on a hero or lane target.");
+      return;
+    }
+    const result = resolvePlayCardDrop(model.legalCommands, dropTarget.cardId, dropTarget.target);
+    if (result.command) {
+      setSelectedCardId(null);
+      setInputFeedback(null);
+      onSubmitCommand(result.command);
+      return;
+    }
+    setSelectedCardId(dropTarget.cardId);
+    setInputFeedback(result.feedback);
+  }
+
   function activateOrTarget(heroId: string) {
     if (selectedCardId) {
       targetHero(heroId);
@@ -93,7 +126,8 @@ export default function BattleStage({ model, connectionStatus, error, onSubmitCo
   }
 
   return (
-    <section className="battle-stage">
+    <DndContext onDragEnd={handleDragEnd}>
+      <section className="battle-stage">
       <BattleSceneLayer model={model} />
       <MatchHud model={model} connectionStatus={connectionStatus} error={error} onExportReplay={onExportReplay} />
       <AiOpponentPanel model={model} />
@@ -102,9 +136,7 @@ export default function BattleStage({ model, connectionStatus, error, onSubmitCo
       <div className="battle-zones">
         {model.zones.map((zone) => (
           <section key={zone.id} className="battle-zone">
-            <button type="button" className="zone-target-button" onClick={() => targetZone(zone.id)}>
-              {zone.label}
-            </button>
+            <ZoneTargetButton zoneId={zone.id} label={zone.label} onTargetZone={targetZone} />
             <div className="zone-row enemy-row">
               {zone.enemyHeroes.map((hero) => (
                 <HeroSlot
@@ -130,6 +162,7 @@ export default function BattleStage({ model, connectionStatus, error, onSubmitCo
       </div>
       <HandFan cards={model.hand} selectedCardId={selectedCardId} onSelectCard={selectCard} />
       <LegalCommandsDrawer commands={model.legalCommands} onSubmitCommand={onSubmitCommand} />
-    </section>
+      </section>
+    </DndContext>
   );
 }

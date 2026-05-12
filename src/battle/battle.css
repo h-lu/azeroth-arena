@@ -124,6 +124,12 @@
   color: #f7efe1;
 }
 
+.zone-target-button.drop-over,
+.hero-slot.drop-over .hero-main {
+  border-color: rgba(104, 209, 152, 0.88);
+  box-shadow: 0 0 26px rgba(104, 209, 152, 0.24);
+}
+
 .zone-row {
   display: flex;
   flex-wrap: wrap;
@@ -276,6 +282,12 @@
   transform: translateY(-12px);
   border-color: rgba(104, 209, 152, 0.88);
   box-shadow: 0 0 26px rgba(104, 209, 152, 0.24);
+}
+
+.card-tile.dragging {
+  z-index: 6;
+  opacity: 0.86;
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.42);
 }
 
 .card-tile b {

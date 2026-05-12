@@ -47,3 +47,12 @@ Implement Phase 0 and Phase 1:
 - Zone-only movement cards can submit directly from card selection plus lane click.
 - Cards that require both hero and zone targets now produce local guidance instead of submitting an incomplete command.
 - Drag card input and Pixi/WebGL FX remain future Phase 2/3 work.
+
+## 2026-05-13 Phase 2 Drag Input Slice
+
+- Browser visual QA was retried, but the in-app browser connection still timed out before navigation.
+- Added pure drag/drop command resolution for hero and lane drops.
+- Hand cards are now draggable with `@dnd-kit/core`.
+- Hero slots and lane targets are droppable and reuse the same authoritative `PlayerView.legalCommands` lookup as click input.
+- Illegal drops now produce local feedback without submitting to the server.
+- Pixi/WebGL FX and richer drag overlays remain future Phase 3 polish.
